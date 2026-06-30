@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+const p = new URLSearchParams(location.search);
+const page = p.get('p') || 'dashboard';
+sessionStorage.setItem('mro_user', JSON.stringify({
+  id:1, nome:'Thiago do Nascimento Oliveira',
+  email:'thiago.oliveira@mroativa.com.br', perfil:'admin'
+}));
+location.href = '/?' + page;
+</script>
+</head>
+</html>
