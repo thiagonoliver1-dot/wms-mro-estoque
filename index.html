@@ -887,8 +887,8 @@ PAGES.dashboard=async(el)=>{
       <span>Classificação ABC Completa — ${lista.length} itens</span><span id="dABCIco" style="font-size:.9rem;color:var(--lt)">▲</span>
     </div>
     <div id="dABC">
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Curva</th><th>Código</th><th>Nome</th><th>Gaiola</th><th>Preço</th><th>Saldo</th><th>Vlr.Estoque</th><th>Consumo</th><th>Vlr.Consumido</th><th>% Acum.</th><th>Média/Mês</th><th>Dias</th></tr></thead>
+    <div class="tbl-wrap"><table id="abc-tbl">
+      <thead><tr><th onclick="sortTbl('abc-tbl',0)" style="cursor:pointer">Curva <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',1)" style="cursor:pointer">Código <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',2)" style="cursor:pointer">Nome <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',3)" style="cursor:pointer">Gaiola <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',4,'num')" style="cursor:pointer">Preço <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',5,'num')" style="cursor:pointer">Saldo <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',6,'num')" style="cursor:pointer">Vlr.Estoque <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',7,'num')" style="cursor:pointer">Consumo <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',8,'num')" style="cursor:pointer">Vlr.Consumido <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',9,'num')" style="cursor:pointer">% Acum. <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',10,'num')" style="cursor:pointer">Média/Mês <span class="sico">⇅</span></th><th onclick="sortTbl('abc-tbl',11,'num')" style="cursor:pointer">Dias <span class="sico">⇅</span></th></tr></thead>
       <tbody>${lista.map(x=>`<tr>
         <td><span class="badge ${badgeCl[x.curva]}">${x.curva}</span></td>
         <td><code>${escH(x.codigo||'—')}</code></td><td>${escH(x.nome)}</td>
@@ -2066,6 +2066,42 @@ function showMcMsg(msg,ok){
   setTimeout(()=>{if(el)el.innerHTML='';},4000);
 }
 
+// ── Ordenação genérica de tabelas ────────────────────────────────────────────
+window._tblSort={};
+window.sortTbl=function(tblId,col,type){
+  const tbl=document.getElementById(tblId);
+  if(!tbl)return;
+  const tbody=tbl.querySelector('tbody');
+  if(!tbody)return;
+  const rows=Array.from(tbody.querySelectorAll('tr')).filter(r=>r.cells.length>1);
+  const key=tblId+'_'+col;
+  const asc=window._tblSort[key]!=='asc';
+  window._tblSort[key]=asc?'asc':'desc';
+  // update header icons
+  tbl.querySelectorAll('thead th').forEach((th,i)=>{
+    const ico=th.querySelector('.sico');
+    if(ico)ico.textContent=i===col?(asc?'↑':'↓'):'⇅';
+  });
+  rows.sort((a,b)=>{
+    const av=(a.cells[col]?.textContent||'').trim();
+    const bv=(b.cells[col]?.textContent||'').trim();
+    if(type==='num'){
+      const an=parseFloat(av.replace(/[^\d.,-]/g,'').replace(',','.'))||0;
+      const bn=parseFloat(bv.replace(/[^\d.,-]/g,'').replace(',','.'))||0;
+      return asc?an-bn:bn-an;
+    }
+    if(type==='date'){
+      const ad=av.includes('/')?av.split('/').reverse().join('-'):av;
+      const bd=bv.includes('/')?bv.split('/').reverse().join('-'):bv;
+      return asc?ad.localeCompare(bd):bd.localeCompare(ad);
+    }
+    return asc?av.localeCompare(bv,'pt-BR',{numeric:true}):bv.localeCompare(av,'pt-BR',{numeric:true});
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+};
+// Injeta ⇅ em todos os th clicáveis e cursor pointer
+function _sth(t,i,type='str'){return ` onclick="sortTbl('${t}',${i},'${type}')" style="cursor:pointer;user-select:none" title="Clique para ordenar"`;}
+
 window.biToggle=function(id){
   const el=document.getElementById(id);
   const ico=document.getElementById(id+'Ico');
@@ -2092,7 +2128,7 @@ PAGES.estoque_view=async(el)=>{
       <button class="btn btn-o btn-sm" onclick="filtEVStatus('zero')"><span style="color:var(--lt)">✕ Sem estoque</span></button>
     </div>
     <div class="card"><div class="tbl-wrap"><table id="tEV">
-      <thead><tr><th></th><th>Código</th><th>Nome</th><th>Un.</th><th>Gaiola</th><th>Saldo</th><th>Mínimo</th><th>Situação</th></tr></thead>
+      <thead><tr><th></th><th onclick="sortTbl('tEV',1)" style="cursor:pointer">Código <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',2)" style="cursor:pointer">Nome <span class="sico">⇅</span></th><th>Un.</th><th onclick="sortTbl('tEV',4)" style="cursor:pointer">Gaiola <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',5,'num')" style="cursor:pointer">Saldo <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',6,'num')" style="cursor:pointer">Mínimo <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',7)" style="cursor:pointer">Situação <span class="sico">⇅</span></th></tr></thead>
       <tbody>${prods.map(p=>{
         const abx=p.saldo<p.minimo&&p.minimo>0;
         const zero=p.saldo===0||p.saldo<=0;
@@ -2160,11 +2196,12 @@ PAGES.produtos=async(el)=>{
         <th style="width:40px"></th>
         <th style="cursor:pointer" onclick="sortProd('codigo')">Código ⇅</th>
         <th style="cursor:pointer" onclick="sortProd('nome')">Nome ⇅</th>
-        <th>Un.</th><th>Gaiola</th>
-        <th>Preço Cad.</th>
-        <th title="Valor unitário da última compra no RC/GIMBA" style="color:var(--blue);cursor:help">Últ. Compra RC ⓘ</th>
+        <th onclick="sortTbl('tP',4)" style="cursor:pointer">Un. <span class="sico">⇅</span></th>
+        <th onclick="sortTbl('tP',5)" style="cursor:pointer">Gaiola <span class="sico">⇅</span></th>
+        <th onclick="sortTbl('tP',6,'num')" style="cursor:pointer">Preço Cad. <span class="sico">⇅</span></th>
+        <th title="Valor unitário da última compra no RC/GIMBA" onclick="sortTbl('tP',7,'num')" style="color:var(--blue);cursor:pointer">Últ. Compra RC <span class="sico">⇅</span></th>
         <th style="cursor:pointer" onclick="sortProd('saldo')">Saldo ⇅</th>
-        <th>Vlr.Estoque</th>
+        <th onclick="sortTbl('tP',9,'num')" style="cursor:pointer">Vlr.Estoque <span class="sico">⇅</span></th>
         <th style="cursor:pointer" onclick="sortProd('minimo')">Mín. ⇅</th>
         <th></th>
       </tr></thead>
@@ -3100,8 +3137,8 @@ window.filtHist=async()=>{
   _histData=movs;
   document.getElementById('hCard').innerHTML=`
     <div class="ctitle">${movs.length} registro(s)</div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Data</th><th>Tipo</th><th>Produto</th><th>Gaiola</th><th>Qtd</th><th>Origem</th><th>Destino</th><th>Motivo</th></tr></thead>
+    <div class="tbl-wrap"><table id="hist-tbl">
+      <thead><tr><th onclick="sortTbl('hist-tbl',0,'date')" style="cursor:pointer">Data <span class="sico">⇅</span></th><th onclick="sortTbl('hist-tbl',1)" style="cursor:pointer">Tipo <span class="sico">⇅</span></th><th onclick="sortTbl('hist-tbl',2)" style="cursor:pointer">Produto <span class="sico">⇅</span></th><th onclick="sortTbl('hist-tbl',3)" style="cursor:pointer">Gaiola <span class="sico">⇅</span></th><th onclick="sortTbl('hist-tbl',4,'num')" style="cursor:pointer">Qtd <span class="sico">⇅</span></th><th onclick="sortTbl('hist-tbl',5)" style="cursor:pointer">Origem <span class="sico">⇅</span></th><th onclick="sortTbl('hist-tbl',6)" style="cursor:pointer">Destino <span class="sico">⇅</span></th><th>Motivo</th></tr></thead>
       <tbody>${movs.length?movs.map(m=>`<tr>
         <td>${fmtD(m.data)}</td>
         <td><span class="badge ${m.tipo==='ENTRADA'?'b-green':'b-red'}">${m.tipo}</span></td>
@@ -3128,8 +3165,8 @@ PAGES.usuarios=async(el)=>{
       <div class="tlt">Gerencie usuários e permissões do sistema.</div>
       <button class="btn btn-p mla" onclick="novoUser()">+ Novo Usuário</button>
     </div>
-    <div class="card"><div class="tbl-wrap"><table>
-      <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Criado em</th><th></th></tr></thead>
+    <div class="card"><div class="tbl-wrap"><table id="usr-tbl">
+      <thead><tr><th onclick="sortTbl('usr-tbl',0)" style="cursor:pointer">Nome <span class="sico">⇅</span></th><th onclick="sortTbl('usr-tbl',1)" style="cursor:pointer">E-mail <span class="sico">⇅</span></th><th onclick="sortTbl('usr-tbl',2)" style="cursor:pointer">Perfil <span class="sico">⇅</span></th><th onclick="sortTbl('usr-tbl',3)" style="cursor:pointer">Status <span class="sico">⇅</span></th><th onclick="sortTbl('usr-tbl',4,'date')" style="cursor:pointer">Criado em <span class="sico">⇅</span></th><th></th></tr></thead>
       <tbody>${users.map(u=>`<tr>
         <td><strong>${escH(u.nome)}</strong></td><td>${escH(u.email)}</td>
         <td>${perfilBadge(u.perfil)}</td>
@@ -3450,8 +3487,8 @@ PAGES.notas_fiscais=async(el)=>{
     </div>
     <div id="nf-kpis" style="display:flex;gap:12px;align-items:center;margin-bottom:10px;flex-wrap:wrap"></div>
     <input type="hidden" id="nfStatusF"/>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Nº NF</th><th>Fornecedor</th><th>Valor</th><th>Tipo</th><th>OC/RC</th><th>Conta Contábil</th><th>Competência</th><th>Status</th><th>Vencimento</th><th></th></tr></thead>
+    <div class="tbl-wrap"><table id="nf-tbl">
+      <thead><tr><th onclick="sortTbl('nf-tbl',0)" style="cursor:pointer">Nº NF <span class="sico">⇅</span></th><th onclick="sortTbl('nf-tbl',1)" style="cursor:pointer">Fornecedor <span class="sico">⇅</span></th><th onclick="sortTbl('nf-tbl',2,'num')" style="cursor:pointer">Valor <span class="sico">⇅</span></th><th onclick="sortTbl('nf-tbl',3)" style="cursor:pointer">Tipo <span class="sico">⇅</span></th><th onclick="sortTbl('nf-tbl',4)" style="cursor:pointer">OC/RC <span class="sico">⇅</span></th><th onclick="sortTbl('nf-tbl',5)" style="cursor:pointer">Conta Contábil <span class="sico">⇅</span></th><th onclick="sortTbl('nf-tbl',6)" style="cursor:pointer">Competência <span class="sico">⇅</span></th><th onclick="sortTbl('nf-tbl',7)" style="cursor:pointer">Status <span class="sico">⇅</span></th><th onclick="sortTbl('nf-tbl',8,'date')" style="cursor:pointer">Vencimento <span class="sico">⇅</span></th><th></th></tr></thead>
       <tbody id="nf-tbody"></tbody>
     </table></div>`;
 
@@ -3782,7 +3819,7 @@ PAGES.rc_gimba=async(el)=>{
       </div>
     </div>
     <div class="tbl-wrap"><table id="rg-tbl">
-      <thead><tr><th>Origem</th><th>RC</th><th>OC</th><th>Descrição</th><th>Fornecedor</th><th>Qtd</th><th>Total OC</th><th>NF</th><th>Competência</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th onclick="sortTbl('rg-tbl',0)" style="cursor:pointer">Origem <span class="sico">⇅</span></th><th onclick="sortTbl('rg-tbl',1)" style="cursor:pointer">RC <span class="sico">⇅</span></th><th onclick="sortTbl('rg-tbl',2)" style="cursor:pointer">OC <span class="sico">⇅</span></th><th onclick="sortTbl('rg-tbl',3)" style="cursor:pointer">Descrição <span class="sico">⇅</span></th><th onclick="sortTbl('rg-tbl',4)" style="cursor:pointer">Fornecedor <span class="sico">⇅</span></th><th onclick="sortTbl('rg-tbl',5,'num')" style="cursor:pointer">Qtd <span class="sico">⇅</span></th><th onclick="sortTbl('rg-tbl',6,'num')" style="cursor:pointer">Total OC <span class="sico">⇅</span></th><th onclick="sortTbl('rg-tbl',7)" style="cursor:pointer">NF <span class="sico">⇅</span></th><th onclick="sortTbl('rg-tbl',8)" style="cursor:pointer">Competência <span class="sico">⇅</span></th><th onclick="sortTbl('rg-tbl',9)" style="cursor:pointer">Status <span class="sico">⇅</span></th><th></th></tr></thead>
       <tbody id="rg-tbody"></tbody>
     </table></div>`;
 
@@ -3906,8 +3943,8 @@ PAGES.contratos=async(el)=>{
         <div style="font-size:1.1rem;font-weight:700;color:var(--teal,#00b4a6)">R$ ${fmt(totalMes*12,2)}</div>
       </div>
     </div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Status</th><th>Serviço</th><th>Fornecedor</th><th>CNPJ</th><th>Tipo</th><th>Recorrência</th><th>Valor Unit.</th><th>Total/Mês</th><th></th></tr></thead>
+    <div class="tbl-wrap"><table id="ct-tbl">
+      <thead><tr><th onclick="sortTbl('ct-tbl',0)" style="cursor:pointer">Status <span class="sico">⇅</span></th><th onclick="sortTbl('ct-tbl',1)" style="cursor:pointer">Serviço <span class="sico">⇅</span></th><th onclick="sortTbl('ct-tbl',2)" style="cursor:pointer">Fornecedor <span class="sico">⇅</span></th><th onclick="sortTbl('ct-tbl',3)" style="cursor:pointer">CNPJ <span class="sico">⇅</span></th><th onclick="sortTbl('ct-tbl',4)" style="cursor:pointer">Tipo <span class="sico">⇅</span></th><th onclick="sortTbl('ct-tbl',5)" style="cursor:pointer">Recorrência <span class="sico">⇅</span></th><th onclick="sortTbl('ct-tbl',6,'num')" style="cursor:pointer">Valor Unit. <span class="sico">⇅</span></th><th onclick="sortTbl('ct-tbl',7,'num')" style="cursor:pointer">Total/Mês <span class="sico">⇅</span></th><th></th></tr></thead>
       <tbody id="ct-tbody"></tbody>
     </table></div>`;
 
