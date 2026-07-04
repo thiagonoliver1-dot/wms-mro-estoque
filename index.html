@@ -3508,66 +3508,142 @@ PAGES.rc_gimba=async(el)=>{
   let fOrigem='',fStatus='',fQ='';
   let _vis=recs;
 
+  // limpa data/hora da competência
+  const fmtComp=(v)=>{
+    if(!v)return'—';
+    const s=String(v);
+    // se for timestamp "2024-05-01 00:00:00" converte para "Mai.2024"
+    const m=s.match(/^(\d{4})-(\d{2})/);
+    if(m){
+      const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      return (meses[parseInt(m[2])-1]||m[2])+'.'+m[1];
+    }
+    return s;
+  };
+
   function render(){
+    fOrigem=document.getElementById('rgOrigem')?.value||'';
+    fStatus=document.getElementById('rgStatus')?.value||'';
+    fQ=(document.getElementById('rgQ')?.value||'').trim().toLowerCase();
     let list=[...recs];
     if(fOrigem)list=list.filter(r=>r.origem===fOrigem);
     if(fStatus)list=list.filter(r=>(r.status||'')===fStatus);
-    if(fQ){const q=fQ.toLowerCase();list=list.filter(r=>
-      (r.descricao||'').toLowerCase().includes(q)||
-      (r.rc||'').toLowerCase().includes(q)||
-      (r.oc||'').toLowerCase().includes(q)||
-      (r.fornecedor||'').toLowerCase().includes(q)||
-      (r.nf||'').toLowerCase().includes(q));}
+    if(fQ)list=list.filter(r=>
+      (r.descricao||'').toLowerCase().includes(fQ)||
+      String(r.rc||'').toLowerCase().includes(fQ)||
+      (r.oc||'').toLowerCase().includes(fQ)||
+      (r.fornecedor||'').toLowerCase().includes(fQ)||
+      String(r.nf||'').toLowerCase().includes(fQ));
     list.sort((a,b)=>b.id-a.id);
     _vis=list;
     const tbody=document.getElementById('rg-tbody');
     if(!tbody)return;
-    if(!list.length){tbody.innerHTML='<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--lt)">Nenhum registro encontrado</td></tr>';return;}
+    if(!list.length){tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--lt)">Nenhum registro encontrado</td></tr>';return;}
     tbody.innerHTML=list.map(r=>`<tr>
       <td><span class="badge ${r.origem==='RC'?'b-blue':'b-green'}">${escH(r.origem||'—')}</span></td>
-      <td>${escH(r.rc||'—')}</td>
+      <td>${escH(String(r.rc||'—'))}</td>
       <td>${escH(r.oc||'—')}</td>
-      <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(r.descricao||'')}">${escH(r.descricao||'—')}</td>
-      <td>${escH(r.fornecedor||'—')}</td>
+      <td style="max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(r.descricao||'')}">${escH(r.descricao||'—')}</td>
+      <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(r.fornecedor||'—')}</td>
       <td>${r.quantidade!=null?fmt(r.quantidade,0):'—'}</td>
       <td>${r.total_oc!=null?'R$ '+fmt(r.total_oc,2):'—'}</td>
-      <td>${escH(r.nf||'—')}</td>
-      <td>${escH(r.competencia||'—')}</td>
-      <td><span class="badge ${r.status==='Entregue'?'b-green':r.status==='Pendente'?'b-warn':'b-out'}">${escH(r.status||'—')}</span></td>
+      <td>${escH(String(r.nf||'—'))}</td>
+      <td>${fmtComp(r.competencia)}</td>
+      <td><span class="badge ${r.status==='Entregue'?'b-green':r.status==='Pendente'||r.status==='Em andamento'?'b-warn':'b-out'}">${escH(r.status||'—')}</span></td>
+      <td><button class="btn btn-sm btn-o" onclick="rgEditar(${r.id})">Editar</button></td>
     </tr>`).join('');
   }
 
   const statuses=[...new Set(recs.map(r=>r.status).filter(Boolean))].sort();
   el.innerHTML=`
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px">
-      <input placeholder="Buscar RC, OC, descrição, fornecedor, NF…" id="rgQ" style="flex:1;min-width:180px;max-width:300px"/>
-      <select id="rgOrigem"><option value="">RC + Gimba</option><option>RC</option><option>Gimba</option></select>
-      <select id="rgStatus"><option value="">Todos status</option>${statuses.map(s=>`<option>${escH(s)}</option>`).join('')}</select>
-      <button class="btn btn-o" onclick="(()=>{fOrigem=document.getElementById('rgOrigem').value;fStatus=document.getElementById('rgStatus').value;fQ=document.getElementById('rgQ').value.trim();render();})()">Filtrar</button>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      <input placeholder="Buscar RC, OC, descrição, fornecedor, NF…" id="rgQ" style="flex:1;min-width:180px;max-width:260px" oninput="render()"/>
+      <select id="rgOrigem" onchange="render()"><option value="">RC + Gimba</option><option>RC</option><option>Gimba</option></select>
+      <select id="rgStatus" onchange="render()"><option value="">Todos status</option>${statuses.map(s=>`<option>${escH(s)}</option>`).join('')}</select>
+      <button class="btn btn-p" onclick="rgNovo()">+ Novo</button>
       <button class="btn btn-o mla" onclick="exportCSV(_vis,['origem','rc','oc','descricao','fornecedor','quantidade','total_oc','nf','competencia','status','data_ticket','data_rc','data_oc','data_lancamento','obs'],'rc_gimba')">⬇ Exportar CSV</button>
     </div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
-      <div class="card" style="padding:12px 20px;min-width:140px">
+      <div class="card" style="padding:12px 20px;min-width:130px">
         <div style="font-size:.75rem;color:var(--lt)">Total registros</div>
         <div style="font-size:1.4rem;font-weight:700">${recs.length}</div>
       </div>
-      <div class="card" style="padding:12px 20px;min-width:140px">
+      <div class="card" style="padding:12px 20px;min-width:160px">
         <div style="font-size:.75rem;color:var(--lt)">Valor total OC</div>
-        <div style="font-size:1.1rem;font-weight:700;color:var(--blue)">R$ ${fmt(recs.reduce((s,r)=>s+(r.total_oc||0),0),2)}</div>
+        <div style="font-size:1rem;font-weight:700;color:var(--blue)">R$ ${fmt(recs.reduce((s,r)=>s+(r.total_oc||0),0),2)}</div>
       </div>
-      <div class="card" style="padding:12px 20px;min-width:140px">
+      <div class="card" style="padding:12px 20px;min-width:100px">
         <div style="font-size:.75rem;color:var(--lt)">RC</div>
         <div style="font-size:1.4rem;font-weight:700">${recs.filter(r=>r.origem==='RC').length}</div>
       </div>
-      <div class="card" style="padding:12px 20px;min-width:140px">
+      <div class="card" style="padding:12px 20px;min-width:100px">
         <div style="font-size:.75rem;color:var(--lt)">Gimba</div>
         <div style="font-size:1.4rem;font-weight:700">${recs.filter(r=>r.origem==='Gimba').length}</div>
       </div>
     </div>
     <div class="tbl-wrap"><table id="rg-tbl">
-      <thead><tr><th>Origem</th><th>RC</th><th>OC</th><th>Descrição</th><th>Fornecedor</th><th>Qtd</th><th>Total OC</th><th>NF</th><th>Competência</th><th>Status</th></tr></thead>
+      <thead><tr><th>Origem</th><th>RC</th><th>OC</th><th>Descrição</th><th>Fornecedor</th><th>Qtd</th><th>Total OC</th><th>NF</th><th>Competência</th><th>Status</th><th></th></tr></thead>
       <tbody id="rg-tbody"></tbody>
     </table></div>`;
+
+  window.render=render;
+  window.rgNovo=()=>rgAbrirForm(null);
+  window.rgEditar=(id)=>rgAbrirForm(recs.find(r=>r.id===id));
+  window.rgAbrirForm=(r)=>{
+    const d=(f)=>r?.[f]?String(r[f]).slice(0,10):'';
+    mOpen(r?'Editar RC/GIMBA':'Novo RC/GIMBA',`<div class="fg">
+      <div class="fgp"><label>Origem*</label><select id="rgFOrig"><option${(!r||r.origem==='RC')?' selected':''}>RC</option><option${r?.origem==='Gimba'?' selected':''}>Gimba</option></select></div>
+      <div class="fgp"><label>Ticket</label><input id="rgFTicket" value="${escH(r?.ticket||'')}"/></div>
+      <div class="fgp"><label>RC</label><input id="rgFRC" value="${escH(String(r?.rc||''))}"/></div>
+      <div class="fgp"><label>OC</label><input id="rgFOC" value="${escH(r?.oc||'')}"/></div>
+      <div class="fgp"><label>Via</label><input id="rgFVia" value="${escH(r?.via||'CCO')}"/></div>
+      <div class="fgp"><label>Tipo</label><select id="rgFTipo">${['NORMAL','URGENTE','EMERGENCIAL'].map(t=>`<option${r?.tipo===t?' selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="fgp full"><label>Descrição*</label><input id="rgFDesc" value="${escH(r?.descricao||'')}"/></div>
+      <div class="fgp full"><label>Fornecedor</label><input id="rgFForn" value="${escH(r?.fornecedor||'')}"/></div>
+      <div class="fgp"><label>Conta Contábil</label><input id="rgFConta" value="${escH(r?.conta_contabil||'')}"/></div>
+      <div class="fgp"><label>Quantidade</label><input type="number" id="rgFQtd" value="${r?.quantidade||''}"/></div>
+      <div class="fgp"><label>Total OC (R$)</label><input type="number" id="rgFTotal" step="0.01" value="${r?.total_oc||''}"/></div>
+      <div class="fgp"><label>NF</label><input id="rgFNF" value="${escH(String(r?.nf||''))}"/></div>
+      <div class="fgp"><label>Competência</label><input id="rgFComp" value="${escH(r?.competencia||'')}" placeholder="Jan/2026"/></div>
+      <div class="fgp"><label>Status</label><select id="rgFStatus">${['Pendente','Em andamento','Entregue','Cancelado'].map(s=>`<option${(r?.status||'Pendente')===s?' selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fgp"><label>Data Ticket</label><input type="date" id="rgFDT" value="${d('data_ticket')}"/></div>
+      <div class="fgp"><label>Data OC</label><input type="date" id="rgFDOC" value="${d('data_oc')}"/></div>
+      <div class="fgp full"><label>Obs</label><textarea id="rgFObs" rows="2">${escH(r?.obs||'')}</textarea></div>
+    </div>`,
+    `<button class="btn btn-o" onclick="mClose()">Cancelar</button>
+     ${r?`<button class="btn btn-r" onclick="rgDel(${r.id})">Excluir</button>`:''}
+     <button class="btn btn-p" onclick="rgSalvar(${r?r.id:''})">Salvar</button>`);
+  };
+  window.rgSalvar=async(id)=>{
+    const g=(i)=>document.getElementById(i)?.value?.trim()||null;
+    const gn=(i)=>{const v=parseFloat(document.getElementById(i)?.value);return isNaN(v)?null:v;};
+    const desc=g('rgFDesc');
+    if(!desc){showMErr('Descrição é obrigatória.');return;}
+    const btn=document.querySelector('#mFoot .btn-p');
+    if(btn){btn.disabled=true;btn.textContent='Salvando…';}
+    try{
+      const obj={origem:g('rgFOrig'),ticket:g('rgFTicket'),rc:g('rgFRC'),oc:g('rgFOC'),via:g('rgFVia'),
+        tipo:g('rgFTipo'),descricao:desc,fornecedor:g('rgFForn'),conta_contabil:g('rgFConta'),
+        quantidade:gn('rgFQtd'),total_oc:gn('rgFTotal'),nf:g('rgFNF'),competencia:g('rgFComp'),
+        status:g('rgFStatus')||'Pendente',data_ticket:g('rgFDT')||null,data_oc:g('rgFDOC')||null,
+        obs:g('rgFObs'),criado_em:now()};
+      if(id){
+        await sbFetch(`rc_gimba?id=eq.${id}`,{method:'PATCH',body:obj,noBody:true});
+        const idx=recs.findIndex(r=>r.id===id);
+        if(idx>=0)recs[idx]={...recs[idx],...obj};
+      }else{
+        const novo=await sbFetch('rc_gimba',{method:'POST',body:obj,prefer:'return=representation'});
+        if(novo?.[0])recs.unshift(novo[0]);
+      }
+      mClose();render();
+    }catch(e){showMErr(e.message);if(btn){btn.disabled=false;btn.textContent='Salvar';}}
+  };
+  window.rgDel=async(id)=>{
+    if(!confirm('Excluir este registro?'))return;
+    await dbDel('rc_gimba',id);
+    recs=recs.filter(r=>r.id!==id);
+    mClose();render();
+  };
   render();
 };
 
