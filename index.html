@@ -672,7 +672,20 @@ function barChart(items,maxVal,colors,w,h,barH){
 
 PAGES.dashboard=async(el)=>{
   el.innerHTML='<div class="tlt">Carregando inteligência de estoque…</div>';
-  const [prods,movs,peds]=await Promise.all([dbGetAll('produtos'),dbGetAll('movimentos'),dbGetAll('pedidos')]);
+  const [prods,movs,peds,rcData]=await Promise.all([dbGetAll('produtos'),dbGetAll('movimentos'),dbGetAll('pedidos'),dbGetAll('rc_gimba').catch(()=>[])]);
+
+  // ── Último preço de compra por produto (via RC/GIMBA) ──
+  const lastRcPrice={};
+  rcData.sort((a,b)=>a.id-b.id).forEach(r=>{
+    const desc=(r.descricao||'').toLowerCase();
+    prods.forEach(p=>{
+      const nome=p.nome.toLowerCase();
+      if(nome.length>=4&&desc.includes(nome)&&r.total_oc&&r.quantidade){
+        if(!lastRcPrice[p.id]||r.id>lastRcPrice[p.id].id)
+          lastRcPrice[p.id]={id:r.id,price:r.total_oc/r.quantidade};
+      }
+    });
+  });
 
   // ── KPIs base ──
   const abxList=prods.filter(p=>p.saldo<p.minimo&&p.minimo>0);
@@ -682,7 +695,8 @@ PAGES.dashboard=async(el)=>{
   const sep=peds.filter(p=>p.status==='Em Separação').length;
 
   // ── Curva ABC ──
-  const precoMap={};prods.forEach(p=>{precoMap[p.id]=p.preco||0;});
+  // usa preço RC se disponível, senão preço cadastrado
+  const precoMap={};prods.forEach(p=>{precoMap[p.id]=lastRcPrice[p.id]?.price||p.preco||0;});
   const saidas=movs.filter(m=>m.tipo==='SAÍDA');
   const mapa={};
   prods.forEach(p=>{mapa[p.id]={id:p.id,codigo:p.codigo,nome:p.nome,gaiola:p.gaiola,saldo:p.saldo,minimo:p.minimo,total:0,meses:{}};});
