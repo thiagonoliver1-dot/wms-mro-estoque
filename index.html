@@ -2156,8 +2156,10 @@ PAGES.produtos=async(el)=>{
       </tr></thead>
       <tbody>${prods.map(p=>{
         const rc=lastRcMap[p.id];
+        const rcPrice=rc?.unitPrice||null;
+        const vlrEstoque=p.saldo*(rcPrice??p.preco??0);
         const rcCell=rc
-          ?`<td style="font-size:.75rem;color:var(--blue)"><strong>R$ ${fmt(rc.unitPrice||0,2)}</strong><br><span style="color:var(--lt);font-size:.68rem">${escH(rc.competencia||rc.fornecedor||'—')}</span></td>`
+          ?`<td style="font-size:.75rem;color:var(--blue)"><strong>R$ ${fmt(rcPrice||0,2)}</strong><br><span style="color:var(--lt);font-size:.68rem">${escH(rc.competencia||rc.fornecedor||'—')}</span></td>`
           :`<td style="color:var(--lt);font-size:.75rem">—</td>`;
         return`<tr data-q="${(p.nome+p.codigo).toLowerCase()}" data-id="${p.id}">
           <td><input type="checkbox" class="prod-chk" onchange="prodChkChange()" data-id="${p.id}"/></td>
@@ -2167,7 +2169,7 @@ PAGES.produtos=async(el)=>{
           <td>R$ ${fmt(p.preco||0,2)}</td>
           ${rcCell}
           <td><strong>${fmt(p.saldo,2)}</strong></td>
-          <td style="font-weight:600;color:var(--blue)">R$ ${fmt((p.preco||0)*p.saldo,2)}</td>
+          <td style="font-weight:600;color:var(--blue)" title="${rcPrice?'Baseado no último preço RC':'Baseado no preço cadastrado'}">R$ ${fmt(vlrEstoque,2)}${rcPrice?'<span style="font-size:.6rem;color:var(--lt);margin-left:2px">RC</span>':''}</td>
           <td class="${p.saldo<p.minimo?'cr':''}">${fmt(p.minimo,2)}</td>
           <td class="row" style="gap:5px;flex-wrap:nowrap">
             <button class="btn btn-o btn-sm" onclick="verHistProd(${p.id},'${escH(p.nome).replace(/'/g,"\\'")}')">Histórico</button>
