@@ -1991,13 +1991,17 @@ PAGES.produtos=async(el)=>{
   const prods=await dbGetAll('produtos');
   prods.sort((a,b)=>a.nome.localeCompare(b.nome));
   el.innerHTML=`
-    <div class="row" style="margin-bottom:14px">
+    <div class="row" style="margin-bottom:14px;flex-wrap:wrap;gap:8px">
       <input id="srch" placeholder="Buscar produto ou código…" style="max-width:240px" oninput="filtProd()"/>
+      <button class="btn btn-o" onclick="prodSelAll()" id="btnSelAll">Selecionar Todos</button>
+      <button class="btn btn-r" id="btnDelSel" style="display:none" onclick="delProdsSel()">Excluir Selecionados (<span id="selCount">0</span>)</button>
+      <button class="btn btn-o" onclick="importarInventario()" style="background:var(--teal,#00b4a6);color:#fff;border-color:transparent">⬆ Importar Inventário</button>
       <button class="btn btn-p mla" onclick="novoProd()">+ Novo Produto</button>
     </div>
     <div class="card"><div class="tbl-wrap"><table id="tP">
-      <thead><tr><th></th><th>Código</th><th>Nome</th><th>Un.</th><th>Categoria</th><th>Gaiola</th><th>Preço</th><th>Saldo</th><th>Vlr.Estoque</th><th>Mín.</th><th></th></tr></thead>
-      <tbody>${prods.map(p=>`<tr data-q="${(p.nome+p.codigo).toLowerCase()}">
+      <thead><tr><th style="width:36px"><input type="checkbox" id="chkAll" onchange="prodChkAll(this)"/></th><th style="width:40px"></th><th>Código</th><th>Nome</th><th>Un.</th><th>Categoria</th><th>Gaiola</th><th>Preço</th><th>Saldo</th><th>Vlr.Estoque</th><th>Mín.</th><th></th></tr></thead>
+      <tbody>${prods.map(p=>`<tr data-q="${(p.nome+p.codigo).toLowerCase()}" data-id="${p.id}">
+        <td><input type="checkbox" class="prod-chk" onchange="prodChkChange()" data-id="${p.id}"/></td>
         <td style="width:40px">${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;object-fit:cover;border-radius:4px"/>`:'<span style="display:inline-block;width:36px;height:36px;background:var(--off);border-radius:4px"></span>'}</td>
         <td><code>${escH(p.codigo)}</code></td><td>${escH(p.nome)}</td><td>${p.unidade}</td>
         <td>${escH(p.categoria||'—')}</td>
@@ -2011,12 +2015,152 @@ PAGES.produtos=async(el)=>{
           <button class="btn btn-o btn-sm" onclick="editProd(${p.id})">Editar</button>
           <button class="btn btn-r btn-sm" onclick="delProd(${p.id},'${escH(p.nome).replace(/'/g,"\\'")}')">×</button>
         </td>
-      </tr>`).join('')||'<tr><td colspan="11" style="text-align:center;color:var(--lt)">Nenhum produto cadastrado.</td></tr>'}
+      </tr>`).join('')||'<tr><td colspan="12" style="text-align:center;color:var(--lt)">Nenhum produto cadastrado.</td></tr>'}
       </tbody></table></div></div>`;
+};
+window.prodChkChange=()=>{
+  const chks=document.querySelectorAll('.prod-chk:checked');
+  const all=document.querySelectorAll('.prod-chk');
+  const n=chks.length;
+  const btnDel=document.getElementById('btnDelSel');
+  const countEl=document.getElementById('selCount');
+  const chkAll=document.getElementById('chkAll');
+  if(btnDel){btnDel.style.display=n>0?'':'none';}
+  if(countEl){countEl.textContent=n;}
+  if(chkAll){chkAll.indeterminate=n>0&&n<all.length;chkAll.checked=n===all.length&&all.length>0;}
+};
+window.prodChkAll=(chk)=>{
+  document.querySelectorAll('#tP tbody tr[data-q]:not([style*="none"]) .prod-chk').forEach(c=>{c.checked=chk.checked;});
+  prodChkChange();
+};
+window.prodSelAll=()=>{
+  const chkAll=document.getElementById('chkAll');
+  if(chkAll){chkAll.checked=true;prodChkAll(chkAll);}
+};
+window.delProdsSel=async()=>{
+  const ids=Array.from(document.querySelectorAll('.prod-chk:checked')).map(c=>+c.dataset.id);
+  if(!ids.length)return;
+  if(!confirm(`Excluir ${ids.length} produto(s) selecionado(s)? Esta ação não pode ser desfeita.`))return;
+  const btn=document.getElementById('btnDelSel');
+  if(btn){btn.disabled=true;btn.textContent='Excluindo…';}
+  try{
+    for(const id of ids) await dbDel('produtos',id);
+    navTo('produtos');
+  }catch(e){
+    alert('Erro ao excluir: '+e.message);
+    if(btn){btn.disabled=false;}
+  }
 };
 window.filtProd=()=>{
   const q=document.getElementById('srch')?.value.toLowerCase()||'';
   document.querySelectorAll('#tP tbody tr[data-q]').forEach(tr=>tr.style.display=tr.dataset.q.includes(q)?'':'none');
+  prodChkChange();
+};
+window.importarInventario=async()=>{
+  const ITENS=[
+    ["ETIQUETA COUCH 100 X 80",8],["ETIQUETA NYLON 33 X 55-3C",18],["ETIQUETA NYLON 33 X 51 - VENTURI",13],
+    ["SACO ZIPLOCK - N09 - 20 X 28CM - 100 UNIDADES",2],["AVENTAL",10],["SACO DE LIXO PRETO - 100 LITROS",30],
+    ["ESPANADOR - PENA DE AVESTRUZ",8],["ALICATE TORQUES ARMADOR",1],["ALICATE REGULAR",1],
+    ["FITILIO 100 M",10],["BORRIFADOR",2],["FITA ZEBRADA 70 MM X 200 M",2],
+    ["FITA RIBBON, 110 X 450",40],["FITA RIBBON, CERA, PARA IMPRESSAO, 110MMX74M",40],
+    ["PANO MULTIUSO PERFLEX",50],["CABO EXTENSOR - FIXALONA",20],["CALCULADORA ELETRONICA - BATERIA",2],
+    ["CALCULADORA DE BOLSO 8 DIGITOS",5],["REFIL PARA PISTOLA QUENTE GOSSA 11MM X 300MM SILVER",10],
+    ["SUPORTE PARA CARREGAMENTO DE CAIXAS",5],["MOUSE",30],["TECLADO",0],["TESOURA",1],
+    ["ETIQUETAS INK JET + LASER",20],["GRAMPEADOR PARA TAPECEIRO",1],
+    ["PINO ADAPTADOR TRI ANT P-TOM TRI NOVA-PT 10 A",9],["LINHA 100% POLIESTER",40],
+    ["LINHA PRA PESCA",2],["APAGADOR ESPECIAL PARA QUADRO BRANCO",11],["EXTRATOR DE GRAMPOS",6],
+    ["GRAMPOS GALVANIZADOS 26/6",12],["CANETA ESFEROGRAFICA AZUL 1.0MM",50],
+    ["CANETA ESFEROGRAFICA PRETA 1.0MM",50],["CAIXA PAPELAO, ARQUIVO MORTO, 50CM X 50CM X 50CM",110],
+    ["CAIXA DE PAPELAO PARA TRANSPORTE E MUDANCA 35X20X15CM",23],
+    ["CAIXA DE PAPELAO, ARQUIVO MORTO, 35CMX13,5CMX24CM",40],
+    ["FITA ADESIVA, PP, TRANSPARENTE, 48MMX45M",170],
+    ["PLASTICO BOLHA, ANTIESTATICO, TRANSPARENTE, 25 MICRAS, 1,30CMX100M",80],
+    ["PAPEL CHAMEX A4 SULFITE BRANCO 210X297MM 75G RESMA 500 FL",16],
+    ["SACO DE RAFIA, PARA ENTULHO, NOVO, 120X70CM",0],["SACO DE RAFIA, PARA ENTULHO, NOVO, 60X90CM",40],
+    ["FITA CREPE BRANCA 18MMX50M 1 UN FIT PEL",100],["PREGO COM CABECA, GALVANIZADO, 17X27, SACO COM 1KG",0],
+    ["PREGO, COM CABECA, 19MMX36MM, 1KG",11],["LACRE PARA MALOTE ESCADA NUMERADO AZUL 16CM",20],
+    ["LACRE DE SEGURANCA, POLIPROPILENO, AZUL, 23CM, RABICHO 26MM",0],
+    ["TRENA EMBORRACHADA COM TRAVA 5M",0],["TRENA EMBORRACHADA COM TRAVA 10M",0],
+    ["ALICATE DE SEGURANCA PREGO MARTELADA",6],["ENVELOPE PLASTICO, A4, SEM FUROS",0],
+    ["GRAMPEADOR MANUAL, ESCRITORIO, METALICO, PRETO, 20 FOLHAS, GRAMPO 26/6",3],
+    ["CANETA MARCA TEXTO, AMARELA",10],["CANETA MARCADOR PERMANENTE, VERMELHA",5],
+    ["CANETA MARCADOR PERMANENTE, AZUL",13],["CANETA MARCADOR PERMANENTE, PRETO",7],
+    ["CANETA MARCADOR PERMANENTE, VERDE",18],["CANETA QUADRO BRANCO, VERMELHO",14],
+    ["CANETA QUADRO BRANCO, PRETO",27],["CANETA QUADRO BRANCO, VERDE",12],
+    ["CANETA QUADRO BRANCO, AZUL",15],["COLA, BASTAO 10 G",9],
+    ["FILME STRETCH, MANUAL, 500MMX25MM, BOBINA 3KG",30],
+    ["PLASTICO PARA PLASTIFICACAO, A4, 220X307MM, 125 MICRA",100],
+    ["ALFINETES NIQUELADOS, N 32",13],["REGUA, PLASTICO, TRANSPARENTE, 30CM",9],
+    ["CALCA MRO - SEM FAIXA/36",0],["CALCA MRO - SEM FAIXA/38",0],["CALCA MRO - SEM FAIXA/40",0],
+    ["CALCA MRO - SEM FAIXA/42",0],["CALCA MRO - SEM FAIXA/44",0],["CALCA MRO - SEM FAIXA/46",0],
+    ["CALCA MRO - SEM FAIXA/48",0],["CALCA MRO - SEM FAIXA/50",0],["CALCA MRO - SEM FAIXA/52",0],
+    ["CALCA MRO - SEM FAIXA/54",0],["CAMISETA POLO PRETA MRO M. CURTA - P/SEM FAIXA",0],
+    ["CAMISETA POLO PRETA MRO M. CURTA - M/SEM FAIXA",0],["CAMISETA POLO PRETA MRO M. CURTA - G/SEM FAIXA",0],
+    ["CAMISETA POLO PRETA MRO M. CURTA - GG/SEM FAIXA",0],["CAMISETA POLO PRETA MRO M. CURTA - XG/SEM FAIXA",0],
+    ["CAMISETA POLO PRETA MRO M. CURTA - XXG/SEM FAIXA",0],["CAMISETA POLO PRETA MRO M. CURTA - XXXG/SEM FAIXA",0],
+    ["CAMISETA POLO ROYAL MRO M. CURTA - P/SEM FAIXA",0],["CAMISETA POLO ROYAL MRO M. CURTA - M/SEM FAIXA",0],
+    ["CAMISETA POLO ROYAL MRO M. CURTA - G/SEM FAIXA",0],["CAMISETA POLO ROYAL MRO M. CURTA - GG/SEM FAIXA",0],
+    ["CAMISETA POLO ROYAL MRO M. CURTA - XG/SEM FAIXA",0],["CAMISETA POLO ROYAL MRO M. CURTA - XXG/SEM FAIXA",0],
+    ["CAMISETA POLO ROYAL MRO M. CURTA - XXXG/SEM FAIXA",0],["CAPACETE, ABA FRONTAL",30],
+    ["CARNEIRA COM JUGULAR PARA CAPACETE",10],
+    ["BOTINA DE SEGURANCA, TAMANHO 37, FECH. ELASTICO, BIQUEIRA DE COMPOSITE",0],
+    ["BOTINA DE SEGURANCA, TAMANHO 38, FECH. ELASTICO, BIQUEIRA DE COMPOSITE",0],
+    ["BOTINA DE SEGURANCA, TAMANHO 39, FECH. ELASTICO, BIQUEIRA DE COMPOSITE",0],
+    ["BOTINA DE SEGURANCA, TAMANHO 40, FECH. ELASTICO, BIQUEIRA DE COMPOSITE",0],
+    ["BOTINA DE SEGURANCA, TAMANHO 41, FECH. ELASTICO, BIQUEIRA DE COMPOSITE",0],
+    ["BOTINA DE SEGURANCA, TAMANHO 42, FECH. ELASTICO, BIQUEIRA DE COMPOSITE",0],
+    ["BOTINA DE SEGURANCA, TAMANHO 43, FECH. ELASTICO, BIQUEIRA DE COMPOSITE",0],
+    ["BOTINA DE SEGURANCA, TAMANHO 44, FECH. ELASTICO, BIQUEIRA DE COMPOSITE",0],
+    ["BOTINA DE SEGURANCA, TAMANHO 45, FECH. ELASTICO, BIQUEIRA DE COMPOSITE",0],
+    ["LUVA DE PROTECAO, ANTI CORTE, FLEXCUT, PUNHO LONGO, POLIETILENO DE ALTA DENSIDADE, COM FIOS DE ACO, NIVEL 5, TAMANHO G",0],
+    ["LUVA DE PROTECAO, ANTI CORTE, FLEXCUT, PUNHO LONGO, POLIETILENO DE ALTA DENSIDADE, COM FIOS DE ACO, NIVEL 5, TAMANHO M",0],
+    ["LUVA DE PROTECAO, ANTI CORTE, FLEXCUT, PUNHO LONGO, POLIETILENO DE ALTA DENSIDADE, COM FIOS DE ACO, NIVEL 5, TAMANHO P",0],
+    ["OCULOS DE SEGURANCA, ARMACAO EM POLIAMIDA PRETA, REVESTIMENTO EM ESPUMA CINZA, FIXACAO POR ENCAIXE, LENTE EM POLICARBONATO INCOLOR",0],
+    ["CINTA DE FERRAMENTAS",1],["CAPA DE CHUVA, PVC, AMARELA, TAM G",0],
+    ["REPELENTE, SPRAY, 110ML",0],["PROTETOR SOLAR, FPS 60, 120ML",0],
+    ["PLASTICO, AUTO ADESIVO, CRISTAL, 45CMX2M",0],
+    ["PLASTIFICADORA PARA POLASEAL, A4/OFICIO, COMPACTA, BIVOLT",0],
+    ["PILHA, ALCALINA, AAA CARTELA COM 2",5],["PILHA, ALCALINA, AA CARTELA COM 2",7],
+    ["CADEADO, LATAO MACICO, DOURADO, COM DUAS CHAVES, 35MM",0],
+    ["CADERNO, ESPIRAL, CAPA DURA, A4, 96 FOLHAS",0],["PASTA POLIONDA, DORSO 6CM - AZUL",0],
+    ["PASTA SANFONADA, OFICIO, A Z, 375MMX245MM - TRANSPARENTE",0],
+    ["PASTA CATALOGO ACP OFICIO COM 50 ENVELOPES - PRETA",4],["FITA DUPLA FACE VHB 19MMX20M",2],
+    ["PRANCHETA, MDF, MARROM, A4, COM PRENDENDOR METALICO",0],
+    ["BARBANTE ALGODAO, BRANCO, 2 MM, EM ROLO",100],
+    ["ABRACADEIRA, NYLON, 300MMX7,6MM, PRETO, C/ 100 UNIDADES",0],
+    ["REABASTECEDOR DE CANETA PERMANENTE AZUL",6],["REABASTECEDOR DE CANETA PERMANENTE PRETO",3],
+    ["TARJADINHAS 500UN, 25X40",2],["CARTUCHO TONER, HP 283, 1,5KG",0],
+    ["BORRACHA ESCOLAR, BRANCA",8],
+    ["FILTRO DE LINHA, EXTENSAO, ELETRICA, 3 TOMADAS, 10 METROS, PRETO",0],
+    ["SACO PLASTICO VIRGEM, TRANSPARENTE, 15X20X20, 5KG",0],
+    ["MOUSE PAD EM TECIDO PRETO 603579 1 UN MAXPRINT",30],
+    ["BLOCO AUTO ADESIVO, AMARELO, 76MMX102MM, CAIXA COM 100 UNIDADES",0],
+    ["PANO DE CHAO, BRANCO, 40CMX65CM",0],
+    ["ENVELOPE PARA ESCRITORIO, PLASTICO, A4, COM 4 FUROS, ESPESSURA 0,06",0],
+    ["SCANNER",0],["ELASTICO",25],["ESTILETE, BICO DE PATO, SEGURANCA BP25",9],
+    ["ESCANINHO",1],["CLIPE ESCRITORIO, NUMERO 2/0",5],
+    ["LAPIS PRETO, GRAFITE, SEXTAVADO, N2",20],["MARTELO UNHA CABECA 25 MM CABO DE FIBRA",5],
+    ["TEKBOND",0],["POST IT - POP UP 45 CX",0]
+  ];
+  if(!confirm(`Isso vai APAGAR todos os produtos atuais e importar ${ITENS.length} itens da planilha Inventário. Continuar?`))return;
+  const btn=document.querySelector('[onclick="importarInventario()"]');
+  if(btn){btn.disabled=true;btn.textContent='Importando…';}
+  try{
+    // apagar todos os produtos existentes
+    const existentes=await dbGetAll('produtos');
+    for(const p of existentes) await dbDel('produtos',p.id);
+    // inserir novos
+    const d=now();
+    for(let i=0;i<ITENS.length;i++){
+      const [nome,saldo]=ITENS[i];
+      const codigo='PROD-'+String(i+1).padStart(4,'0');
+      await sbFetch('produtos',{method:'POST',body:{codigo,nome,unidade:'UN',categoria:null,gaiola:null,preco:0,minimo:0,leadTime:0,foto:null,saldo,criadoEm:d},noBody:true});
+    }
+    navTo('produtos');
+  }catch(e){
+    alert('Erro na importacao: '+e.message);
+    if(btn){btn.disabled=false;btn.textContent='Importar Inventario';}
+  }
 };
 window.novoProd=async()=>openProdModal(null,await nextProdCode());
 window.editProd=async(id)=>openProdModal(await dbGet('produtos',id));
