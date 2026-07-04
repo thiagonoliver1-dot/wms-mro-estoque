@@ -3575,16 +3575,20 @@ PAGES.rc_gimba=async(el)=>{
 PAGES.contratos=async(el)=>{
   let recs=await dbGetAll('contratos').catch(()=>[]);
   let _vis=recs;
+  let _filtroAtivo='todos';
 
   function render(q=''){
     let list=[...recs];
+    if(_filtroAtivo==='ativo') list=list.filter(r=>r.ativo!==false);
+    if(_filtroAtivo==='inativo') list=list.filter(r=>r.ativo===false);
     if(q){const ql=q.toLowerCase();list=list.filter(r=>(r.servico||'').toLowerCase().includes(ql)||(r.razao_social||'').toLowerCase().includes(ql)||(r.cnpj||'').includes(ql));}
     list.sort((a,b)=>(a.servico||'').localeCompare(b.servico||''));
     _vis=list;
     const tbody=document.getElementById('ct-tbody');
     if(!tbody)return;
-    if(!list.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--lt)">Nenhum contrato cadastrado</td></tr>';return;}
-    tbody.innerHTML=list.map(r=>`<tr>
+    if(!list.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--lt)">Nenhum contrato encontrado</td></tr>';return;}
+    tbody.innerHTML=list.map(r=>`<tr style="opacity:${r.ativo===false?'.5':'1'}">
+      <td><span class="badge ${r.ativo===false?'b-red':'b-green'}" style="cursor:pointer" onclick="ctToggleAtivo(${r.id})" title="Clique para alternar">${r.ativo===false?'Inativo':'Ativo'}</span></td>
       <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(r.servico||'')}">${escH(r.servico_resumido||r.servico||'—')}</td>
       <td>${escH(r.razao_social||'—')}</td>
       <td><code style="font-size:.78rem">${escH(r.cnpj||'—')}</code></td>
@@ -3592,25 +3596,33 @@ PAGES.contratos=async(el)=>{
       <td>${escH(r.recorrencia||'—')}</td>
       <td style="font-weight:700;color:var(--blue)">${r.valor_unitario!=null?'R$ '+fmt(r.valor_unitario,2):'—'}</td>
       <td style="font-weight:700">${r.total_mes!=null?'R$ '+fmt(r.total_mes,2):'—'}</td>
-      <td>
-        <button class="btn btn-sm btn-o" onclick="ctDetalhe(${r.id})">Detalhes</button>
-      </td>
+      <td><button class="btn btn-sm btn-o" onclick="ctDetalhe(${r.id})">Detalhes</button></td>
     </tr>`).join('');
   }
 
-  const totalMes=recs.reduce((s,r)=>s+(r.total_mes||0),0);
+  const ativos=recs.filter(r=>r.ativo!==false);
+  const totalMes=ativos.reduce((s,r)=>s+(r.total_mes||0),0);
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px">
-      <input placeholder="Buscar serviço, fornecedor, CNPJ…" id="ctQ" style="flex:1;min-width:180px;max-width:300px" oninput="render_ct(this.value)"/>
-      <button class="btn btn-o mla" onclick="exportCSV(_vis,['servico','servico_resumido','razao_social','cnpj','tipo_contrato','recorrencia','quantidade_unitaria','valor_unitario','total_mes','conta_contabil','local','instrucoes','contato'],'contratos')">⬇ Exportar CSV</button>
+      <input placeholder="Buscar serviço, fornecedor, CNPJ…" id="ctQ" style="flex:1;min-width:180px;max-width:280px" oninput="render_ct(this.value)"/>
+      <select id="ctFiltroAtivo" onchange="_filtroAtivo=this.value;render(document.getElementById('ctQ').value)">
+        <option value="todos">Todos</option>
+        <option value="ativo" selected>Ativos</option>
+        <option value="inativo">Inativos</option>
+      </select>
+      <button class="btn btn-o mla" onclick="exportCSV(_vis,['servico','servico_resumido','razao_social','cnpj','tipo_contrato','recorrencia','quantidade_unitaria','valor_unitario','total_mes','conta_contabil','local','instrucoes','contato','ativo'],'contratos')">⬇ Exportar CSV</button>
     </div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
-      <div class="card" style="padding:12px 20px;min-width:160px">
-        <div style="font-size:.75rem;color:var(--lt)">Contratos ativos</div>
-        <div style="font-size:1.4rem;font-weight:700">${recs.length}</div>
+      <div class="card" style="padding:12px 20px;min-width:140px">
+        <div style="font-size:.75rem;color:var(--lt)">Ativos</div>
+        <div style="font-size:1.4rem;font-weight:700;color:var(--green,#27ae60)">${ativos.length}</div>
+      </div>
+      <div class="card" style="padding:12px 20px;min-width:140px">
+        <div style="font-size:.75rem;color:var(--lt)">Inativos</div>
+        <div style="font-size:1.4rem;font-weight:700;color:var(--red)">${recs.length-ativos.length}</div>
       </div>
       <div class="card" style="padding:12px 20px;min-width:180px">
-        <div style="font-size:.75rem;color:var(--lt)">Total mensal</div>
+        <div style="font-size:.75rem;color:var(--lt)">Total mensal (ativos)</div>
         <div style="font-size:1.1rem;font-weight:700;color:var(--blue)">R$ ${fmt(totalMes,2)}</div>
       </div>
       <div class="card" style="padding:12px 20px;min-width:180px">
@@ -3619,11 +3631,18 @@ PAGES.contratos=async(el)=>{
       </div>
     </div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Serviço</th><th>Fornecedor</th><th>CNPJ</th><th>Tipo</th><th>Recorrência</th><th>Valor Unit.</th><th>Total/Mês</th><th></th></tr></thead>
+      <thead><tr><th>Status</th><th>Serviço</th><th>Fornecedor</th><th>CNPJ</th><th>Tipo</th><th>Recorrência</th><th>Valor Unit.</th><th>Total/Mês</th><th></th></tr></thead>
       <tbody id="ct-tbody"></tbody>
     </table></div>`;
 
   window.render_ct=(q)=>render(q);
+  window.ctToggleAtivo=async(id)=>{
+    const r=recs.find(x=>x.id===id);if(!r)return;
+    const novoAtivo=r.ativo===false?true:false;
+    await sbFetch(`contratos?id=eq.${id}`,{method:'PATCH',body:{ativo:novoAtivo},noBody:true});
+    r.ativo=novoAtivo;
+    render(document.getElementById('ctQ')?.value||'');
+  };
   window.ctDetalhe=async(id)=>{
     const r=recs.find(x=>x.id===id);if(!r)return;
     mOpen(escH(r.servico_resumido||r.servico||'Contrato'),`
