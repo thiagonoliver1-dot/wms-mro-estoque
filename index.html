@@ -429,9 +429,9 @@ async function dbDel(table,id){
 let CU = null; // currentUser
 
 const PERFIL_PAGES = {
-  admin:        ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','usuarios','estoque_view','requisicoes','notas_fiscais','minha_conta'],
+  admin:        ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','usuarios','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','minha_conta'],
   estoque:      ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','minha_conta'],
-  suprimentos:  ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','requisicoes','notas_fiscais','minha_conta'],
+  suprimentos:  ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','minha_conta'],
   solicitante:  ['pedidos','estoque_view','minha_conta']
 };
 const PAGE_TITLES = {
@@ -439,7 +439,8 @@ const PAGE_TITLES = {
   saida:'Saída de Estoque',posicoes:'Posições — Gaiolas 1–20',inventario:'Inventário Físico',
   pedidos:'Pedidos para Operação',historico:'Histórico de Movimentos',usuarios:'Gerenciar Usuários',
   estoque_view:'Consulta de Estoque',mario:'Mario — Assistente de Estoque',minha_conta:'Minha Conta',
-  requisicoes:'Requisições de Compra — RC / GIMBA',notas_fiscais:'Lançamento de Notas Fiscais'
+  requisicoes:'Requisições de Compra — RC / GIMBA',notas_fiscais:'Lançamento de Notas Fiscais',
+  rc_gimba:'RC / GIMBA — Gestão de Compras',contratos:'Gestão de Contratos'
 };
 const NAV = [
   {p:'dashboard',l:'Dashboard & BI',i:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'},
@@ -450,7 +451,8 @@ const NAV = [
   {p:'inventario',l:'Inventário',i:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'},
   {p:'pedidos',l:'Pedidos',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>'},
   {p:'historico',l:'Histórico',i:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'},
-  {p:'requisicoes',l:'Requisições RC',i:'<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>'},
+  {p:'rc_gimba',l:'RC / GIMBA',i:'<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>'},
+  {p:'contratos',l:'Contratos',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="12" y1="17" x2="12" y2="13"/>'},
   {p:'notas_fiscais',l:'Notas Fiscais',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>'},
   {p:'usuarios',l:'Usuários',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},
   {p:'estoque_view',l:'Consulta Estoque',i:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>'},
@@ -3204,43 +3206,51 @@ function nfStatusBadge(s){const m={Pendente:'b-warn',Lançado:'b-blue',Pago:'b-g
 
 PAGES.notas_fiscais=async(el)=>{
   let recs=await dbGetAll('notas_fiscais');
-  let fStatus='',fQ='';
+  let fStatus='',fQ='',fTipo='';
+  let _nfData=recs;
 
   function render(){
     let list=[...recs];
     if(fStatus)list=list.filter(r=>r.status===fStatus);
-    if(fQ){const q=fQ.toLowerCase();list=list.filter(r=>(r.numero_nf||'').toLowerCase().includes(q)||(r.fornecedor||'').toLowerCase().includes(q)||(r.conta_contabil||'').toLowerCase().includes(q));}
+    if(fTipo)list=list.filter(r=>(r.tipo_item||r.tipo||'')===fTipo);
+    if(fQ){const q=fQ.toLowerCase();list=list.filter(r=>(r.numero_nf||'').toLowerCase().includes(q)||(r.fornecedor||'').toLowerCase().includes(q)||(r.oc||'').toLowerCase().includes(q)||(r.rc_numero||'').toLowerCase().includes(q)||(r.conta_contabil||'').toLowerCase().includes(q));}
     list.sort((a,b)=>new Date(b.criado_em)-new Date(a.criado_em));
+    _nfData=list;
     const tbody=document.getElementById('nf-tbody');
     if(!tbody)return;
     tbody.innerHTML=list.length?list.map(r=>`<tr>
       <td><strong>${escH(r.numero_nf||'—')}</strong></td>
       <td>${escH(r.fornecedor||'—')}</td>
       <td>${r.valor!=null?'R$ '+fmt(r.valor,2):'—'}</td>
+      <td>${escH(r.tipo_item||r.tipo||'—')}</td>
+      <td>${escH(r.oc||r.rc_numero||'—')}</td>
       <td>${escH(r.competencia||'—')}</td>
       <td>${nfStatusBadge(r.status)}</td>
       <td>${r.vencimento?new Date(r.vencimento+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
       <td style="display:flex;gap:6px">
         <button class="btn btn-sm btn-o" onclick="nfEditar(${r.id})">Editar</button>
-        ${r.foto?`<button class="btn btn-sm btn-o" onclick="nfVerFoto(${r.id})">📷 Foto</button>`:''}
+        ${r.foto?`<button class="btn btn-sm btn-o" onclick="nfVerFoto(${r.id})">Foto</button>`:''}
       </td>
-    </tr>`).join(''):`<tr><td colspan="7" class="tlt" style="text-align:center;padding:32px">Nenhuma nota lançada</td></tr>`;
+    </tr>`).join(''):`<tr><td colspan="9" class="tlt" style="text-align:center;padding:32px">Nenhuma nota lançada</td></tr>`;
   }
 
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px">
       <button class="btn btn-p" onclick="nfNova()">+ Lançar Nota Fiscal</button>
-      <input placeholder="Buscar nº NF, fornecedor, conta…" id="nfQ" style="flex:1;min-width:160px;max-width:300px"/>
-      <select id="nfStatusF"><option value="">Todos os status</option>${NF_STATUS.map(s=>`<option>${escH(s)}</option>`).join('')}</select>
+      <input placeholder="Buscar nº NF, fornecedor, OC, RC…" id="nfQ" style="flex:1;min-width:160px;max-width:280px"/>
+      <select id="nfStatusF"><option value="">Todos status</option>${NF_STATUS.map(s=>`<option>${escH(s)}</option>`).join('')}</select>
+      <select id="nfTipoF"><option value="">Todos tipos</option><option>COMPRA</option><option>SERVIÇO</option><option>ALUGUEL</option><option>FRETE</option><option>OUTRO</option></select>
       <button class="btn btn-o" onclick="window._nfFiltrar()">Filtrar</button>
+      <button class="btn btn-o mla" onclick="exportCSV(_nfData,['numero_nf','fornecedor','valor','tipo_item','oc','rc_numero','gimba_ticket','competencia','status','vencimento','conta_contabil','obs'],'notas_fiscais')">⬇ Exportar CSV</button>
     </div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Nº NF</th><th>Fornecedor</th><th>Valor</th><th>Competência</th><th>Status</th><th>Vencimento</th><th></th></tr></thead>
+      <thead><tr><th>Nº NF</th><th>Fornecedor</th><th>Valor</th><th>Tipo</th><th>OC/RC</th><th>Competência</th><th>Status</th><th>Vencimento</th><th></th></tr></thead>
       <tbody id="nf-tbody"></tbody>
     </table></div>`;
 
   window._nfFiltrar=()=>{
     fStatus=document.getElementById('nfStatusF').value;
+    fTipo=document.getElementById('nfTipoF').value;
     fQ=document.getElementById('nfQ').value.trim();
     render();
   };
@@ -3248,14 +3258,23 @@ PAGES.notas_fiscais=async(el)=>{
   render();
 };
 
-function nfFormHTML(r){
+function nfFormHTML(r,contratos=[]){
   const d=(f)=>r?.[f]?String(r[f]).slice(0,10):'';
+  const cOpts=contratos.map(c=>`<option value="${c.id}"${r?.contrato_id===c.id?' selected':''}>${escH(c.servico_resumido||c.servico||'Contrato '+c.id)}</option>`).join('');
   return`<div class="fg">
     <div class="fgp"><label>Nº da Nota Fiscal*</label><input id="nfFNr" value="${escH(r?.numero_nf||'')}"/></div>
     <div class="fgp"><label>Status</label><select id="nfFStatus">${NF_STATUS.map(s=>`<option${s===(r?.status||'Pendente')?' selected':''}>${s}</option>`).join('')}</select></div>
     <div class="fgp full"><label>Fornecedor*</label><input id="nfFForn" value="${escH(r?.fornecedor||'')}"/></div>
-    <div class="fgp"><label>Tipo</label><select id="nfFTipo">${NF_TIPOS.map(t=>`<option${t===(r?.tipo||'COMPRA')?' selected':''}>${t}</option>`).join('')}</select></div>
-    <div class="fgp"><label>CC (Centro de Custo)</label><input id="nfFCC" value="${escH(r?.cc||'1118102')}"/></div>
+    <div class="fgp"><label>Tipo do Item</label><select id="nfFTipoItem">
+      ${['MATERIAL','SERVIÇO','ALUGUEL','FRETE','OUTRO'].map(t=>`<option${t===(r?.tipo_item||r?.tipo||'MATERIAL')?' selected':''}>${t}</option>`).join('')}
+    </select></div>
+    <div class="fgp"><label>OC (Ordem de Compra)</label><input id="nfFOC" value="${escH(r?.oc||'')}" placeholder="O12345"/></div>
+    <div class="fgp"><label>Nº RC (Requisição de Compra)</label><input id="nfFRC" value="${escH(r?.rc_numero||'')}" placeholder="12345"/></div>
+    <div class="fgp"><label>Ticket GIMBA</label><input id="nfFGimba" value="${escH(r?.gimba_ticket||'')}" placeholder="Ticket #"/></div>
+    <div class="fgp"><label>Contrato Vinculado</label><select id="nfFContrato">
+      <option value="">— Sem contrato —</option>${cOpts}
+    </select></div>
+    <div class="fgp"><label>CC (Centro de Custo)</label><input id="nfFCC" value="${escH(r?.centro_custo||r?.cc||'1118102')}"/></div>
     <div class="fgp full"><label>Conta Contábil</label><select id="nfFConta">
       <option value="">Selecione…</option>${rcContaOpts(r?.conta_contabil||'')}
     </select></div>
@@ -3408,17 +3427,18 @@ Analise a imagem e extraia APENAS o que for visível. Responda SOMENTE com JSON 
   }
 };
 
-window.nfNova=()=>{
+window.nfNova=async()=>{
   window._nfFotoData=null;
-  mOpen('Lançar Nota Fiscal',`<div style="max-height:65vh;overflow-y:auto;padding-right:4px">${nfFormHTML(null)}</div>`,
+  const contratos=await dbGetAll('contratos').catch(()=>[]);
+  mOpen('Lançar Nota Fiscal',`<div style="max-height:65vh;overflow-y:auto;padding-right:4px">${nfFormHTML(null,contratos)}</div>`,
     `<button class="btn btn-o" onclick="mClose()">Cancelar</button>
      <button class="btn btn-p" onclick="nfSalvar(null)">Lançar NF</button>`);
 };
 
 window.nfEditar=async(id)=>{
-  const r=await dbGet('notas_fiscais',id);
+  const [r,contratos]=await Promise.all([dbGet('notas_fiscais',id),dbGetAll('contratos').catch(()=>[])]);
   window._nfFotoData=r.foto||null;
-  mOpen('Editar Nota Fiscal',`<div style="max-height:65vh;overflow-y:auto;padding-right:4px">${nfFormHTML(r)}</div>`,
+  mOpen('Editar Nota Fiscal',`<div style="max-height:65vh;overflow-y:auto;padding-right:4px">${nfFormHTML(r,contratos)}</div>`,
     `<button class="btn btn-o" onclick="mClose()">Cancelar</button>
      <button class="btn btn-d" onclick="nfDeletar(${id})">Excluir</button>
      <button class="btn btn-p" onclick="nfSalvar(${id})">Salvar</button>`);
@@ -3434,6 +3454,7 @@ window.nfVerFoto=async(id)=>{
 window.nfSalvar=async(id)=>{
   const g=(i)=>document.getElementById(i)?.value?.trim()||null;
   const gn=(i)=>{const v=parseFloat(document.getElementById(i)?.value);return isNaN(v)?null:v;};
+  const gi=(i)=>{const v=parseInt(document.getElementById(i)?.value);return isNaN(v)||!v?null:v;};
   const nr=g('nfFNr'),forn=g('nfFForn'),valor=gn('nfFValor');
   if(!nr){showMErr('Número da NF é obrigatório.');return;}
   if(!forn){showMErr('Fornecedor é obrigatório.');return;}
@@ -3443,7 +3464,10 @@ window.nfSalvar=async(id)=>{
   try{
     const dados={
       numero_nf:nr,fornecedor:forn,valor,status:g('nfFStatus')||'Pendente',
-      tipo:g('nfFTipo')||'COMPRA',cc:g('nfFCC'),conta_contabil:g('nfFConta'),
+      tipo_item:g('nfFTipoItem')||'MATERIAL',tipo:g('nfFTipoItem')||'MATERIAL',
+      oc:g('nfFOC'),rc_numero:g('nfFRC'),gimba_ticket:g('nfFGimba'),
+      contrato_id:gi('nfFContrato'),
+      centro_custo:g('nfFCC'),conta_contabil:g('nfFConta'),
       competencia:g('nfFComp'),forma_pagamento:g('nfFFP'),
       vencimento:g('nfFVenc')||null,data_lancamento:g('nfFDLanc')||null,
       obs:g('nfFObs'),foto:window._nfFotoData||null
@@ -3458,6 +3482,166 @@ window.nfDeletar=async(id)=>{
   if(!confirm('Excluir esta nota fiscal?'))return;
   await dbDel('notas_fiscais',id);
   mClose();navTo('notas_fiscais');
+};
+
+// ── EXPORTAR CSV ──────────────────────────────────────────────────────────────
+window.exportCSV=function(data,cols,filename){
+  if(!data||!data.length){alert('Nenhum dado para exportar.');return;}
+  const header=cols.join(';');
+  const rows=data.map(r=>cols.map(c=>{
+    const v=r[c];
+    if(v==null)return'';
+    const s=String(v).replace(/"/g,'""');
+    return s.includes(';')||s.includes('"')||s.includes('\n')?`"${s}"`:s;
+  }).join(';'));
+  const csv='﻿'+header+'\n'+rows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=(filename||'relatorio')+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();URL.revokeObjectURL(url);
+};
+
+// ── RC / GIMBA ────────────────────────────────────────────────────────────────
+PAGES.rc_gimba=async(el)=>{
+  let recs=await dbGetAll('rc_gimba').catch(()=>[]);
+  let fOrigem='',fStatus='',fQ='';
+  let _vis=recs;
+
+  function render(){
+    let list=[...recs];
+    if(fOrigem)list=list.filter(r=>r.origem===fOrigem);
+    if(fStatus)list=list.filter(r=>(r.status||'')===fStatus);
+    if(fQ){const q=fQ.toLowerCase();list=list.filter(r=>
+      (r.descricao||'').toLowerCase().includes(q)||
+      (r.rc||'').toLowerCase().includes(q)||
+      (r.oc||'').toLowerCase().includes(q)||
+      (r.fornecedor||'').toLowerCase().includes(q)||
+      (r.nf||'').toLowerCase().includes(q));}
+    list.sort((a,b)=>b.id-a.id);
+    _vis=list;
+    const tbody=document.getElementById('rg-tbody');
+    if(!tbody)return;
+    if(!list.length){tbody.innerHTML='<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--lt)">Nenhum registro encontrado</td></tr>';return;}
+    tbody.innerHTML=list.map(r=>`<tr>
+      <td><span class="badge ${r.origem==='RC'?'b-blue':'b-green'}">${escH(r.origem||'—')}</span></td>
+      <td>${escH(r.rc||'—')}</td>
+      <td>${escH(r.oc||'—')}</td>
+      <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(r.descricao||'')}">${escH(r.descricao||'—')}</td>
+      <td>${escH(r.fornecedor||'—')}</td>
+      <td>${r.quantidade!=null?fmt(r.quantidade,0):'—'}</td>
+      <td>${r.total_oc!=null?'R$ '+fmt(r.total_oc,2):'—'}</td>
+      <td>${escH(r.nf||'—')}</td>
+      <td>${escH(r.competencia||'—')}</td>
+      <td><span class="badge ${r.status==='Entregue'?'b-green':r.status==='Pendente'?'b-warn':'b-out'}">${escH(r.status||'—')}</span></td>
+    </tr>`).join('');
+  }
+
+  const statuses=[...new Set(recs.map(r=>r.status).filter(Boolean))].sort();
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px">
+      <input placeholder="Buscar RC, OC, descrição, fornecedor, NF…" id="rgQ" style="flex:1;min-width:180px;max-width:300px"/>
+      <select id="rgOrigem"><option value="">RC + Gimba</option><option>RC</option><option>Gimba</option></select>
+      <select id="rgStatus"><option value="">Todos status</option>${statuses.map(s=>`<option>${escH(s)}</option>`).join('')}</select>
+      <button class="btn btn-o" onclick="(()=>{fOrigem=document.getElementById('rgOrigem').value;fStatus=document.getElementById('rgStatus').value;fQ=document.getElementById('rgQ').value.trim();render();})()">Filtrar</button>
+      <button class="btn btn-o mla" onclick="exportCSV(_vis,['origem','rc','oc','descricao','fornecedor','quantidade','total_oc','nf','competencia','status','data_ticket','data_rc','data_oc','data_lancamento','obs'],'rc_gimba')">⬇ Exportar CSV</button>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
+      <div class="card" style="padding:12px 20px;min-width:140px">
+        <div style="font-size:.75rem;color:var(--lt)">Total registros</div>
+        <div style="font-size:1.4rem;font-weight:700">${recs.length}</div>
+      </div>
+      <div class="card" style="padding:12px 20px;min-width:140px">
+        <div style="font-size:.75rem;color:var(--lt)">Valor total OC</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--blue)">R$ ${fmt(recs.reduce((s,r)=>s+(r.total_oc||0),0),2)}</div>
+      </div>
+      <div class="card" style="padding:12px 20px;min-width:140px">
+        <div style="font-size:.75rem;color:var(--lt)">RC</div>
+        <div style="font-size:1.4rem;font-weight:700">${recs.filter(r=>r.origem==='RC').length}</div>
+      </div>
+      <div class="card" style="padding:12px 20px;min-width:140px">
+        <div style="font-size:.75rem;color:var(--lt)">Gimba</div>
+        <div style="font-size:1.4rem;font-weight:700">${recs.filter(r=>r.origem==='Gimba').length}</div>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table id="rg-tbl">
+      <thead><tr><th>Origem</th><th>RC</th><th>OC</th><th>Descrição</th><th>Fornecedor</th><th>Qtd</th><th>Total OC</th><th>NF</th><th>Competência</th><th>Status</th></tr></thead>
+      <tbody id="rg-tbody"></tbody>
+    </table></div>`;
+  render();
+};
+
+// ── GESTÃO DE CONTRATOS ───────────────────────────────────────────────────────
+PAGES.contratos=async(el)=>{
+  let recs=await dbGetAll('contratos').catch(()=>[]);
+  let _vis=recs;
+
+  function render(q=''){
+    let list=[...recs];
+    if(q){const ql=q.toLowerCase();list=list.filter(r=>(r.servico||'').toLowerCase().includes(ql)||(r.razao_social||'').toLowerCase().includes(ql)||(r.cnpj||'').includes(ql));}
+    list.sort((a,b)=>(a.servico||'').localeCompare(b.servico||''));
+    _vis=list;
+    const tbody=document.getElementById('ct-tbody');
+    if(!tbody)return;
+    if(!list.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--lt)">Nenhum contrato cadastrado</td></tr>';return;}
+    tbody.innerHTML=list.map(r=>`<tr>
+      <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(r.servico||'')}">${escH(r.servico_resumido||r.servico||'—')}</td>
+      <td>${escH(r.razao_social||'—')}</td>
+      <td><code style="font-size:.78rem">${escH(r.cnpj||'—')}</code></td>
+      <td>${escH(r.tipo_contrato||'—')}</td>
+      <td>${escH(r.recorrencia||'—')}</td>
+      <td style="font-weight:700;color:var(--blue)">${r.valor_unitario!=null?'R$ '+fmt(r.valor_unitario,2):'—'}</td>
+      <td style="font-weight:700">${r.total_mes!=null?'R$ '+fmt(r.total_mes,2):'—'}</td>
+      <td>
+        <button class="btn btn-sm btn-o" onclick="ctDetalhe(${r.id})">Detalhes</button>
+      </td>
+    </tr>`).join('');
+  }
+
+  const totalMes=recs.reduce((s,r)=>s+(r.total_mes||0),0);
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px">
+      <input placeholder="Buscar serviço, fornecedor, CNPJ…" id="ctQ" style="flex:1;min-width:180px;max-width:300px" oninput="render_ct(this.value)"/>
+      <button class="btn btn-o mla" onclick="exportCSV(_vis,['servico','servico_resumido','razao_social','cnpj','tipo_contrato','recorrencia','quantidade_unitaria','valor_unitario','total_mes','conta_contabil','local','instrucoes','contato'],'contratos')">⬇ Exportar CSV</button>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
+      <div class="card" style="padding:12px 20px;min-width:160px">
+        <div style="font-size:.75rem;color:var(--lt)">Contratos ativos</div>
+        <div style="font-size:1.4rem;font-weight:700">${recs.length}</div>
+      </div>
+      <div class="card" style="padding:12px 20px;min-width:180px">
+        <div style="font-size:.75rem;color:var(--lt)">Total mensal</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--blue)">R$ ${fmt(totalMes,2)}</div>
+      </div>
+      <div class="card" style="padding:12px 20px;min-width:180px">
+        <div style="font-size:.75rem;color:var(--lt)">Total anual estimado</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--teal,#00b4a6)">R$ ${fmt(totalMes*12,2)}</div>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Serviço</th><th>Fornecedor</th><th>CNPJ</th><th>Tipo</th><th>Recorrência</th><th>Valor Unit.</th><th>Total/Mês</th><th></th></tr></thead>
+      <tbody id="ct-tbody"></tbody>
+    </table></div>`;
+
+  window.render_ct=(q)=>render(q);
+  window.ctDetalhe=async(id)=>{
+    const r=recs.find(x=>x.id===id);if(!r)return;
+    mOpen(escH(r.servico_resumido||r.servico||'Contrato'),`
+      <div class="fg">
+        <div class="fgp full"><label>Serviço completo</label><div style="padding:8px;background:var(--off);border-radius:6px;font-size:.87rem">${escH(r.servico||'—')}</div></div>
+        <div class="fgp"><label>Razão Social</label><div style="padding:8px;background:var(--off);border-radius:6px">${escH(r.razao_social||'—')}</div></div>
+        <div class="fgp"><label>CNPJ</label><div style="padding:8px;background:var(--off);border-radius:6px">${escH(r.cnpj||'—')}</div></div>
+        <div class="fgp"><label>Conta Contábil</label><div style="padding:8px;background:var(--off);border-radius:6px">${escH(r.conta_contabil||'—')}</div></div>
+        <div class="fgp"><label>Local</label><div style="padding:8px;background:var(--off);border-radius:6px">${escH(r.local||'—')}</div></div>
+        <div class="fgp"><label>Tipo / Recorrência</label><div style="padding:8px;background:var(--off);border-radius:6px">${escH(r.tipo_contrato||'—')} / ${escH(r.recorrencia||'—')}</div></div>
+        <div class="fgp"><label>Valor Unit.</label><div style="padding:8px;background:var(--off);border-radius:6px;font-weight:700">R$ ${fmt(r.valor_unitario||0,2)}</div></div>
+        <div class="fgp"><label>Total/Mês</label><div style="padding:8px;background:var(--off);border-radius:6px;font-weight:700;color:var(--blue)">R$ ${fmt(r.total_mes||0,2)}</div></div>
+        <div class="fgp full"><label>Instruções</label><div style="padding:8px;background:var(--off);border-radius:6px;font-size:.87rem">${escH(r.instrucoes||'—')}</div></div>
+        <div class="fgp full"><label>Contato</label><div style="padding:8px;background:var(--off);border-radius:6px">${escH(r.contato||'—')}</div></div>
+      </div>`,
+      `<button class="btn btn-o" onclick="mClose()">Fechar</button>`);
+  };
+  render();
 };
 
 // ═══════════════════════════════════════════════════
