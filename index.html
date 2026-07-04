@@ -429,9 +429,9 @@ async function dbDel(table,id){
 let CU = null; // currentUser
 
 const PERFIL_PAGES = {
-  admin:        ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','usuarios','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','minha_conta'],
+  admin:        ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','usuarios','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','pa_realizado','minha_conta'],
   estoque:      ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','minha_conta'],
-  suprimentos:  ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','minha_conta'],
+  suprimentos:  ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','pa_realizado','minha_conta'],
   solicitante:  ['pedidos','estoque_view','minha_conta']
 };
 const PAGE_TITLES = {
@@ -440,7 +440,7 @@ const PAGE_TITLES = {
   pedidos:'Pedidos para Operação',historico:'Histórico de Movimentos',usuarios:'Gerenciar Usuários',
   estoque_view:'Consulta de Estoque',mario:'Mario — Assistente de Estoque',minha_conta:'Minha Conta',
   requisicoes:'Requisições de Compra — RC / GIMBA',notas_fiscais:'Lançamento de Notas Fiscais',
-  rc_gimba:'RC / GIMBA — Gestão de Compras',contratos:'Gestão de Contratos'
+  rc_gimba:'RC / GIMBA — Gestão de Compras',contratos:'Gestão de Contratos',pa_realizado:'PA vs Realizado — Contas Contábeis'
 };
 const NAV = [
   {p:'dashboard',l:'Dashboard & BI',i:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'},
@@ -454,6 +454,7 @@ const NAV = [
   {p:'rc_gimba',l:'RC / GIMBA',i:'<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>'},
   {p:'contratos',l:'Contratos',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="12" y1="17" x2="12" y2="13"/>'},
   {p:'notas_fiscais',l:'Notas Fiscais',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>'},
+  {p:'pa_realizado',l:'PA vs Realizado',i:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><polyline points="2 20 22 20"/>'},
   {p:'usuarios',l:'Usuários',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},
   {p:'estoque_view',l:'Consulta Estoque',i:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>'},
   {p:'minha_conta',l:'Minha Conta',i:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M12 11v4"/><path d="M9 15h6"/>'},
@@ -945,10 +946,11 @@ PAGES.dashboard=async(el)=>{
 
   ${await (async()=>{
     // ── Capítulo 5: RC/GIMBA ──
-    const [rg,ct,nf]=await Promise.all([
+    const [rg,ct,nf,paRecs]=await Promise.all([
       dbGetAll('rc_gimba').catch(()=>[]),
       dbGetAll('contratos').catch(()=>[]),
-      dbGetAll('notas_fiscais').catch(()=>[])
+      dbGetAll('notas_fiscais').catch(()=>[]),
+      dbGetAll('pa_contas').catch(()=>[])
     ]);
     const fmtComp=(v)=>{if(!v)return'—';const s=String(v);const m=s.match(/^(\d{4})-(\d{2})/);if(m){const ms=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return(ms[parseInt(m[2])-1]||m[2])+'.'+m[1];}return s;};
     // RC/GIMBA stats
@@ -974,7 +976,16 @@ PAGES.dashboard=async(el)=>{
     const totalMes=ctAtivos.reduce((s,c)=>s+(c.total_mes||0),0);
     // NF stats
     const nfTotal=nf.reduce((s,n)=>s+(n.valor||0),0);
-    const nfStatus={};nf.forEach(n=>{nfStatus[n.status||'Pendente']=(nfStatus[n.status||'Pendente']||0)+1;});
+    const nfFornMap={};nf.forEach(n=>{const f=n.fornecedor||'Sem fornecedor';nfFornMap[f]=(nfFornMap[f]||0)+(n.valor||0);});
+    const topNfForn=Object.entries(nfFornMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+    const maxNfForn=topNfForn[0]?.[1]||1;
+    const nfStatus={};nf.forEach(n=>{const ns=nfNormStatus(n.status);nfStatus[ns]=(nfStatus[ns]||0)+1;});
+    // PA vs Realizado
+    const paMap={};paRecs.forEach(r=>{if(r.conta_contabil)paMap[r.conta_contabil]=r.pa_valor||0;});
+    const realMap={};nf.forEach(n=>{const c=(n.conta_contabil||'').trim();if(c)realMap[c]=(realMap[c]||0)+(n.valor||0);});
+    const paContas=[...new Set([...Object.keys(paMap),...Object.keys(realMap)])].sort();
+    const totalPA=paContas.reduce((s,c)=>s+(paMap[c]||0),0);
+    const totalReal=paContas.reduce((s,c)=>s+(realMap[c]||0),0);
     const nfPorMes={};meses6.forEach(m=>{nfPorMes[m]=0;});
     nf.forEach(n=>{const c=String(n.competencia||n.criado_em||'');const m=c.match(/^(\d{4})-(\d{2})/);if(m){const k=m[1]+'-'+m[2];if(nfPorMes[k]!==undefined)nfPorMes[k]+=(n.valor||0);}});
     const maxNf=Math.max(...Object.values(nfPorMes),1);
@@ -1062,12 +1073,63 @@ PAGES.dashboard=async(el)=>{
     <div class="kpi-card"><div class="kpi-lbl">Valor Total</div><div class="kpi-val" style="font-size:1.1rem;color:var(--green)">R$ ${fmt(nfTotal,2)}</div></div>
     ${Object.entries(nfStatus).map(([s,n])=>`<div class="kpi-card"><div class="kpi-lbl">${escH(s)}</div><div class="kpi-val">${n}</div></div>`).join('')}
   </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:8px">
+    <div class="card" style="padding:16px">
+      <div class="ctitle">Valor NFs por Competência — Últimos 6 meses</div>
+      <svg viewBox="0 0 ${cW2} ${chartH2}" width="100%" style="overflow:visible">
+        <line x1="${sX2}" y1="${chartH2-20}" x2="${cW2-10}" y2="${chartH2-20}" stroke="#dce3f5" stroke-width="1"/>
+        ${nfBars}
+      </svg>
+    </div>
+    <div class="card" style="padding:16px">
+      <div class="ctitle">Top Fornecedores — Valor NFs</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        ${topNfForn.map(([f,v])=>`<div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.72rem;width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0" title="${escH(f)}">${escH(f)}</span>
+          <div style="flex:1;background:var(--off);border-radius:2px;height:14px">
+            <div style="width:${(v/maxNfForn*100).toFixed(1)}%;background:var(--green);height:100%;border-radius:2px"></div>
+          </div>
+          <span style="font-size:.72rem;font-weight:700;min-width:80px;text-align:right;color:var(--green)">R$ ${fmt(v,0)}</span>
+        </div>`).join('')||'<div class="tlt">Sem dados</div>'}
+      </div>
+    </div>
+  </div>
+
+  <!-- STORY 8: PA vs REALIZADO -->
+  <div style="display:flex;align-items:center;gap:8px;margin:28px 0 10px">
+    <div style="width:4px;height:28px;background:#f59e0b;border-radius:2px"></div>
+    <div>
+      <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--lt)">Capítulo 8</div>
+      <div style="font-size:.97rem;font-weight:800;color:var(--blue)">PA vs Realizado — Contas Contábeis</div>
+    </div>
+  </div>
+  <div class="kpi-grid" style="margin-bottom:16px">
+    <div class="kpi-card"><div class="kpi-lbl">Total PA</div><div class="kpi-val" style="color:var(--blue)">R$ ${fmt(totalPA,2)}</div></div>
+    <div class="kpi-card"><div class="kpi-lbl">Total Realizado</div><div class="kpi-val" style="color:var(--green)">R$ ${fmt(totalReal,2)}</div></div>
+    <div class="kpi-card"><div class="kpi-lbl">Saldo PA</div><div class="kpi-val" style="color:${totalPA-totalReal>=0?'var(--blue)':'var(--red)'}">R$ ${fmt(totalPA-totalReal,2)}</div></div>
+    <div class="kpi-card"><div class="kpi-lbl">% Executado</div><div class="kpi-val" style="color:#f59e0b">${totalPA?((totalReal/totalPA)*100).toFixed(1)+'%':'—'}</div></div>
+    <div class="kpi-card"><div class="kpi-lbl">Contas</div><div class="kpi-val">${paContas.length}</div></div>
+  </div>
   <div class="card" style="padding:16px;margin-bottom:8px">
-    <div class="ctitle">Valor NFs por Competência — Últimos 6 meses</div>
-    <svg viewBox="0 0 ${cW2} ${chartH2}" width="100%" style="overflow:visible">
-      <line x1="${sX2}" y1="${chartH2-20}" x2="${cW2-10}" y2="${chartH2-20}" stroke="#dce3f5" stroke-width="1"/>
-      ${nfBars}
-    </svg>
+    <div class="ctitle">PA vs Realizado por Conta Contábil</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+      ${paContas.map(c=>{
+        const pa=paMap[c]||0;const real=realMap[c]||0;
+        const pct=pa?(real/pa*100):null;
+        const barReal=pa?Math.min(100,real/pa*100).toFixed(1):100;
+        const barColor=pct==null?'var(--lt)':pct>100?'var(--red)':pct>80?'#f59e0b':'var(--green)';
+        return`<div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%" title="${escH(c)}">${escH(c)}</span>
+            <span style="font-size:.72rem;color:var(--lt)">${pa?'PA R$ '+fmt(pa,0)+' · ':''}<span style="color:var(--green);font-weight:700">R$ ${fmt(real,0)}</span>${pct!=null?' · <span style="color:'+barColor+';font-weight:800">'+pct.toFixed(1)+'%</span>':''}</span>
+          </div>
+          <div style="background:var(--off);border-radius:4px;height:14px;overflow:hidden">
+            ${pa?`<div style="width:${barReal}%;background:${barColor};height:100%;border-radius:4px;opacity:.85"></div>`
+                :`<div style="width:100%;background:var(--green);height:100%;border-radius:4px;opacity:.4"></div>`}
+          </div>
+        </div>`;
+      }).join('')||'<div class="tlt">Nenhuma conta com realizado</div>'}
+    </div>
   </div>`;
   })()}`;
 };
@@ -3412,9 +3474,10 @@ window.rcDeletar=async(id)=>{
 //  PAGES — Notas Fiscais
 // ═══════════════════════════════════════════════════
 const NF_TIPOS=['COMPRA','SERVIÇO','ALUGUEL','FRETE','OUTRO'];
-const NF_STATUS=['Pendente','Lançado','Pago','Cancelado'];
+const NF_STATUS=['Nota Lançada','Cancelada'];
 
-function nfStatusBadge(s){const m={Pendente:'b-warn',Lançado:'b-blue',Pago:'b-green',Cancelado:'b-red'};return`<span class="badge ${m[s]||'b-out'}">${escH(s||'Pendente')}</span>`;}
+function nfNormStatus(s){return(!s||s==='Pendente'||s==='Lançado'||s==='Pago'||s==='Aprovado')?'Nota Lançada':s;}
+function nfStatusBadge(s){const ns=nfNormStatus(s);const m={'Nota Lançada':'b-green',Cancelada:'b-red'};return`<span class="badge ${m[ns]||'b-out'}">${escH(ns)}</span>`;}
 
 PAGES.notas_fiscais=async(el)=>{
   let recs=await dbGetAll('notas_fiscais');
@@ -3426,7 +3489,7 @@ PAGES.notas_fiscais=async(el)=>{
     fTipo=document.getElementById('nfTipoF')?.value||'';
     fQ=(document.getElementById('nfQ')?.value||'').trim().toLowerCase();
     let list=[...recs];
-    if(fStatus)list=list.filter(r=>r.status===fStatus);
+    if(fStatus)list=list.filter(r=>nfNormStatus(r.status)===fStatus);
     if(fTipo)list=list.filter(r=>(r.tipo_item||r.tipo||'')===fTipo);
     if(fQ)list=list.filter(r=>(r.numero_nf||'').toLowerCase().includes(fQ)||(r.fornecedor||'').toLowerCase().includes(fQ)||(r.oc||'').toLowerCase().includes(fQ)||(r.rc_numero||'').toLowerCase().includes(fQ)||(r.conta_contabil||'').toLowerCase().includes(fQ));
     list.sort((a,b)=>new Date(b.criado_em)-new Date(a.criado_em));
@@ -3443,12 +3506,12 @@ PAGES.notas_fiscais=async(el)=>{
     const kpiEl=document.getElementById('nf-kpis');
     if(kpiEl){
       const tot=list.reduce((s,r)=>s+(r.valor||0),0);
-      const pend=list.filter(r=>r.status==='Pendente').length;
-      const pago=list.filter(r=>r.status==='Pago').length;
+      const lanc=list.filter(r=>nfNormStatus(r.status)==='Nota Lançada').length;
+      const canc=list.filter(r=>nfNormStatus(r.status)==='Cancelada').length;
       kpiEl.innerHTML=`<span style="font-size:.78rem;color:var(--lt)">${list.length} NFs</span>
         <span style="font-size:.78rem;font-weight:700;color:var(--blue)">R$ ${fmt(tot,2)}</span>
-        ${pend?`<span class="badge b-warn">${pend} Pendente${pend>1?'s':''}</span>`:''}
-        ${pago?`<span class="badge b-green">${pago} Pago${pago>1?'s':''}</span>`:''}`;
+        ${lanc?`<span class="badge b-green">${lanc} Nota${lanc>1?'s':''} Lançada${lanc>1?'s':''}</span>`:''}
+        ${canc?`<span class="badge b-red">${canc} Cancelada${canc>1?'s':''}</span>`:''}`;
     }
     tbody.innerHTML=list.length?list.map(r=>`<tr>
       <td><strong>${escH(r.numero_nf||'—')}</strong></td>
@@ -3469,8 +3532,7 @@ PAGES.notas_fiscais=async(el)=>{
   window._nfRender=nfRender;
 
   // contagens por status para chips
-  const statusCounts={};recs.forEach(r=>{const s=r.status||'Pendente';statusCounts[s]=(statusCounts[s]||0)+1;});
-  const chipColors={'Pendente':'b-warn','Pago':'b-green','Cancelado':'b-out','Aprovado':'b-blue','Rejeitado':'b-out'};
+  const statusCounts={};recs.forEach(r=>{const s=nfNormStatus(r.status);statusCounts[s]=(statusCounts[s]||0)+1;});
 
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
@@ -3500,7 +3562,7 @@ function nfFormHTML(r,contratos=[]){
   const cOpts=contratos.map(c=>`<option value="${c.id}"${r?.contrato_id===c.id?' selected':''}>${escH(c.servico_resumido||c.servico||'Contrato '+c.id)}</option>`).join('');
   return`<div class="fg">
     <div class="fgp"><label>Nº da Nota Fiscal*</label><input id="nfFNr" value="${escH(r?.numero_nf||'')}"/></div>
-    <div class="fgp"><label>Status</label><select id="nfFStatus">${NF_STATUS.map(s=>`<option${s===(r?.status||'Pendente')?' selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="fgp"><label>Status</label><select id="nfFStatus">${NF_STATUS.map(s=>`<option${s===(r?.status||'Nota Lançada')?' selected':''}>${s}</option>`).join('')}</select></div>
     <div class="fgp full"><label>Fornecedor*</label><input id="nfFForn" value="${escH(r?.fornecedor||'')}"/></div>
     <div class="fgp"><label>Tipo do Item</label><select id="nfFTipoItem">
       ${['MATERIAL','SERVIÇO','ALUGUEL','FRETE','OUTRO'].map(t=>`<option${t===(r?.tipo_item||r?.tipo||'MATERIAL')?' selected':''}>${t}</option>`).join('')}
@@ -3700,7 +3762,7 @@ window.nfSalvar=async(id)=>{
   if(btn){btn.disabled=true;btn.textContent='Salvando…';}
   try{
     const dados={
-      numero_nf:nr,fornecedor:forn,valor,status:g('nfFStatus')||'Pendente',
+      numero_nf:nr,fornecedor:forn,valor,status:g('nfFStatus')||'Nota Lançada',
       tipo_item:g('nfFTipoItem')||'MATERIAL',tipo:g('nfFTipoItem')||'MATERIAL',
       oc:g('nfFOC'),rc_numero:g('nfFRC'),gimba_ticket:g('nfFGimba'),
       contrato_id:gi('nfFContrato'),
@@ -3737,6 +3799,112 @@ window.exportCSV=function(data,cols,filename){
   const a=document.createElement('a');
   a.href=url;a.download=(filename||'relatorio')+'_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();URL.revokeObjectURL(url);
+};
+
+// ── PA vs REALIZADO ───────────────────────────────────────────────────────────
+PAGES.pa_realizado=async(el)=>{
+  // Carrega NFs e PA salvo em paralelo
+  const [nfs, paRecs] = await Promise.all([
+    dbGetAll('notas_fiscais').catch(()=>[]),
+    dbGetAll('pa_contas').catch(()=>[])
+  ]);
+
+  // Mapa PA: conta_contabil -> {id, pa_valor}
+  const paMap={};
+  paRecs.forEach(r=>{if(r.conta_contabil)paMap[r.conta_contabil]={id:r.id,pa:r.pa_valor||0};});
+
+  // Realizado: agrupa NFs por conta_contabil
+  const realMap={};
+  nfs.forEach(n=>{
+    const c=(n.conta_contabil||'').trim();
+    if(!c)return;
+    realMap[c]=(realMap[c]||0)+(n.valor||0);
+  });
+
+  // Lista de todas as contas (união de PA e NFs)
+  const contas=[...new Set([...Object.keys(paMap),...Object.keys(realMap)])].sort();
+
+  // Estado de edição inline
+  const editando={};
+
+  function paRender(){
+    const q=(document.getElementById('paQ')?.value||'').trim().toLowerCase();
+    const listaFilt=q?contas.filter(c=>c.toLowerCase().includes(q)):contas;
+    const total_pa=contas.reduce((s,c)=>(paMap[c]?.pa||0)+s,0);
+    const total_real=contas.reduce((s,c)=>(realMap[c]||0)+s,0);
+    const saldo=total_pa-total_real;
+    document.getElementById('pa-kpis').innerHTML=`
+      <div class="kpi-card"><div class="kpi-lbl">Total PA</div><div class="kpi-val" style="color:var(--blue)">R$ ${fmt(total_pa,2)}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Total Realizado</div><div class="kpi-val" style="color:var(--green)">R$ ${fmt(total_real,2)}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Saldo</div><div class="kpi-val" style="color:${saldo>=0?'var(--green)':'var(--red)'}">R$ ${fmt(saldo,2)}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">% Executado</div><div class="kpi-val" style="color:var(--blue)">${total_pa?((total_real/total_pa)*100).toFixed(1)+'%':'—'}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Contas</div><div class="kpi-val">${contas.length}</div></div>`;
+    const tbody=document.getElementById('pa-tbody');
+    tbody.innerHTML=listaFilt.map((c,idx)=>{
+      const pa=paMap[c]?.pa||0;
+      const real=realMap[c]||0;
+      const saldo=pa-real;
+      const pct=pa?(real/pa*100):null;
+      const barW=pa?Math.min(100,real/pa*100).toFixed(1):0;
+      const barColor=pct==null?'var(--lt)':pct>100?'var(--red)':pct>80?'#f59e0b':'var(--green)';
+      return`<tr>
+        <td style="font-size:.8rem;max-width:260px">${escH(c)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" step="0.01" class="pa-inp" data-conta="${escH(c)}" value="${pa||''}" placeholder="0,00"
+              style="width:120px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;text-align:right"
+              onchange="paSalvar('${escH(c)}',this.value)"/>
+          </div>
+        </td>
+        <td style="font-weight:600;color:var(--green);text-align:right">R$ ${fmt(real,2)}</td>
+        <td style="text-align:right;font-weight:600;color:${saldo>=0?'var(--blue)':'var(--red)'}">R$ ${fmt(saldo,2)}</td>
+        <td style="min-width:140px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="flex:1;background:var(--off);border-radius:4px;height:12px;overflow:hidden">
+              <div style="width:${barW}%;background:${barColor};height:100%;border-radius:4px;transition:.3s"></div>
+            </div>
+            <span style="font-size:.75rem;font-weight:700;min-width:38px;color:${barColor}">${pct!=null?pct.toFixed(1)+'%':'—'}</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('')||`<tr><td colspan="5" class="tlt" style="text-align:center;padding:32px">Nenhuma conta encontrada</td></tr>`;
+  }
+
+  window._paRender=paRender;
+
+  window.paSalvar=async(conta,val)=>{
+    const v=parseFloat(val)||0;
+    try{
+      if(paMap[conta]?.id){
+        await sbFetch(`pa_contas?id=eq.${paMap[conta].id}`,{method:'PATCH',body:{pa_valor:v,atualizado_em:now()},noBody:true});
+        paMap[conta].pa=v;
+      }else{
+        const novo=await sbFetch('pa_contas',{method:'POST',body:{conta_contabil:conta,pa_valor:v},prefer:'return=representation'});
+        if(novo?.[0])paMap[conta]={id:novo[0].id,pa:v};
+        else paMap[conta]={id:null,pa:v};
+      }
+      paRender();
+    }catch(e){showMErr('Erro ao salvar PA: '+e.message);}
+  };
+
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <input id="paQ" placeholder="Filtrar conta contábil…" style="flex:1;min-width:220px;max-width:360px" oninput="_paRender()"/>
+      <span style="font-size:.75rem;color:var(--lt)">Edite o PA diretamente na tabela — salva automaticamente ao sair do campo</span>
+    </div>
+    <div id="pa-kpis" class="kpi-grid" style="margin-bottom:16px"></div>
+    <div class="tbl-wrap"><table id="pa-tbl">
+      <thead><tr>
+        <th onclick="sortTbl('pa-tbl',0)" style="cursor:pointer">Conta Contábil <span class="sico">⇅</span></th>
+        <th onclick="sortTbl('pa-tbl',1,'num')" style="cursor:pointer">PA (R$) <span class="sico">⇅</span></th>
+        <th onclick="sortTbl('pa-tbl',2,'num')" style="cursor:pointer;text-align:right">Realizado (R$) <span class="sico">⇅</span></th>
+        <th onclick="sortTbl('pa-tbl',3,'num')" style="cursor:pointer;text-align:right">Saldo <span class="sico">⇅</span></th>
+        <th>% Executado</th>
+      </tr></thead>
+      <tbody id="pa-tbody"></tbody>
+    </table></div>`;
+
+  paRender();
 };
 
 // ── RC / GIMBA ────────────────────────────────────────────────────────────────
@@ -3826,26 +3994,57 @@ PAGES.rc_gimba=async(el)=>{
   window.render=render;
   window.rgNovo=()=>rgAbrirForm(null);
   window.rgEditar=(id)=>rgAbrirForm(recs.find(r=>r.id===id));
+  function rgItemRow(i,desc='',qtd='',total=''){
+    return`<div class="rg-item-row" data-idx="${i}" style="display:grid;grid-template-columns:1fr 90px 110px 32px;gap:6px;align-items:end;margin-bottom:6px">
+      <div><label style="font-size:.7rem;color:var(--lt)">Descrição*</label><input class="rgi-desc" placeholder="Descrição do item" value="${escH(desc)}" style="width:100%"/></div>
+      <div><label style="font-size:.7rem;color:var(--lt)">Qtd</label><input type="number" class="rgi-qtd" value="${qtd}" placeholder="0" style="width:100%"/></div>
+      <div><label style="font-size:.7rem;color:var(--lt)">Total OC (R$)</label><input type="number" step="0.01" class="rgi-tot" value="${total}" placeholder="0,00" style="width:100%"/></div>
+      <div style="padding-bottom:1px"><button type="button" onclick="rgRemItem(this)" style="background:var(--red);color:#fff;border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:1rem;line-height:1" title="Remover item">−</button></div>
+    </div>`;
+  }
+  window.rgAddItem=()=>{
+    const wrap=document.getElementById('rg-items');
+    if(!wrap)return;
+    const idx=wrap.children.length;
+    wrap.insertAdjacentHTML('beforeend',rgItemRow(idx));
+  };
+  window.rgRemItem=(btn)=>{
+    const row=btn.closest('.rg-item-row');
+    const wrap=document.getElementById('rg-items');
+    if(wrap&&wrap.children.length<=1){showMErr('A RC precisa ter ao menos 1 item.');return;}
+    row?.remove();
+  };
+
   window.rgAbrirForm=(r)=>{
     const d=(f)=>r?.[f]?String(r[f]).slice(0,10):'';
-    mOpen(r?'Editar RC/GIMBA':'Novo RC/GIMBA',`<div class="fg">
+    // Modo edição: 1 item pré-preenchido; modo novo: 1 linha em branco
+    const itemsHTML=rgItemRow(0,r?.descricao||'',r?.quantidade||'',r?.total_oc||'');
+    mOpen(r?'Editar RC/GIMBA':'Novo RC/GIMBA',`<div style="max-height:70vh;overflow-y:auto;padding-right:4px">
+    <div class="fg">
       <div class="fgp"><label>Origem*</label><select id="rgFOrig"><option${(!r||r.origem==='RC')?' selected':''}>RC</option><option${r?.origem==='Gimba'?' selected':''}>Gimba</option></select></div>
       <div class="fgp"><label>Ticket</label><input id="rgFTicket" value="${escH(r?.ticket||'')}"/></div>
       <div class="fgp"><label>RC</label><input id="rgFRC" value="${escH(String(r?.rc||''))}"/></div>
       <div class="fgp"><label>OC</label><input id="rgFOC" value="${escH(r?.oc||'')}"/></div>
       <div class="fgp"><label>Via</label><input id="rgFVia" value="${escH(r?.via||'CCO')}"/></div>
       <div class="fgp"><label>Tipo</label><select id="rgFTipo">${['NORMAL','URGENTE','EMERGENCIAL'].map(t=>`<option${r?.tipo===t?' selected':''}>${t}</option>`).join('')}</select></div>
-      <div class="fgp full"><label>Descrição*</label><input id="rgFDesc" value="${escH(r?.descricao||'')}"/></div>
       <div class="fgp full"><label>Fornecedor</label><input id="rgFForn" value="${escH(r?.fornecedor||'')}"/></div>
-      <div class="fgp"><label>Conta Contábil</label><input id="rgFConta" value="${escH(r?.conta_contabil||'')}"/></div>
-      <div class="fgp"><label>Quantidade</label><input type="number" id="rgFQtd" value="${r?.quantidade||''}"/></div>
-      <div class="fgp"><label>Total OC (R$)</label><input type="number" id="rgFTotal" step="0.01" value="${r?.total_oc||''}"/></div>
+      <div class="fgp full"><label>Conta Contábil</label><input id="rgFConta" value="${escH(r?.conta_contabil||'')}"/></div>
       <div class="fgp"><label>NF</label><input id="rgFNF" value="${escH(String(r?.nf||''))}"/></div>
       <div class="fgp"><label>Competência</label><input id="rgFComp" value="${escH(r?.competencia||'')}" placeholder="Jan/2026"/></div>
       <div class="fgp"><label>Status</label><select id="rgFStatus">${['Pendente','Em andamento','Entregue','Cancelado'].map(s=>`<option${(r?.status||'Pendente')===s?' selected':''}>${s}</option>`).join('')}</select></div>
       <div class="fgp"><label>Data Ticket</label><input type="date" id="rgFDT" value="${d('data_ticket')}"/></div>
       <div class="fgp"><label>Data OC</label><input type="date" id="rgFDOC" value="${d('data_oc')}"/></div>
       <div class="fgp full"><label>Obs</label><textarea id="rgFObs" rows="2">${escH(r?.obs||'')}</textarea></div>
+    </div>
+    <!-- Itens -->
+    <div style="border-top:2px solid var(--border);margin:14px 0 10px;padding-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:.8rem;font-weight:700;color:var(--blue)">ITENS DA RC</span>
+        ${r?'':`<button type="button" class="btn btn-o" style="font-size:.75rem;padding:3px 12px" onclick="rgAddItem()">+ Adicionar item</button>`}
+      </div>
+      <div id="rg-items">${itemsHTML}</div>
+      ${r?'':`<div style="text-align:center;margin-top:4px"><button type="button" class="btn btn-o" style="font-size:.73rem;width:100%;padding:5px" onclick="rgAddItem()">+ Adicionar mais um item</button></div>`}
+    </div>
     </div>`,
     `<button class="btn btn-o" onclick="mClose()">Cancelar</button>
      ${r?`<button class="btn btn-r" onclick="rgDel(${r.id})">Excluir</button>`:''}
@@ -3854,23 +4053,35 @@ PAGES.rc_gimba=async(el)=>{
   window.rgSalvar=async(id)=>{
     const g=(i)=>document.getElementById(i)?.value?.trim()||null;
     const gn=(i)=>{const v=parseFloat(document.getElementById(i)?.value);return isNaN(v)?null:v;};
-    const desc=g('rgFDesc');
-    if(!desc){showMErr('Descrição é obrigatória.');return;}
     const btn=document.querySelector('#mFoot .btn-p');
     if(btn){btn.disabled=true;btn.textContent='Salvando…';}
     try{
-      const obj={origem:g('rgFOrig'),ticket:g('rgFTicket'),rc:g('rgFRC'),oc:g('rgFOC'),via:g('rgFVia'),
-        tipo:g('rgFTipo'),descricao:desc,fornecedor:g('rgFForn'),conta_contabil:g('rgFConta'),
-        quantidade:gn('rgFQtd'),total_oc:gn('rgFTotal'),nf:g('rgFNF'),competencia:g('rgFComp'),
+      // Cabeçalho comum
+      const cab={origem:g('rgFOrig'),ticket:g('rgFTicket'),rc:g('rgFRC'),oc:g('rgFOC'),via:g('rgFVia'),
+        tipo:g('rgFTipo'),fornecedor:g('rgFForn'),conta_contabil:g('rgFConta'),
+        nf:g('rgFNF'),competencia:g('rgFComp'),
         status:g('rgFStatus')||'Pendente',data_ticket:g('rgFDT')||null,data_oc:g('rgFDOC')||null,
-        obs:g('rgFObs'),criado_em:now()};
+        obs:g('rgFObs')};
+      // Lê linhas de itens
+      const rows=[...document.querySelectorAll('#rg-items .rg-item-row')];
+      const itens=rows.map(row=>({
+        descricao:(row.querySelector('.rgi-desc')?.value||'').trim(),
+        quantidade:parseFloat(row.querySelector('.rgi-qtd')?.value)||null,
+        total_oc:parseFloat(row.querySelector('.rgi-tot')?.value)||null
+      })).filter(it=>it.descricao);
+      if(!itens.length){showMErr('Informe ao menos 1 item com descrição.');if(btn){btn.disabled=false;btn.textContent='Salvar';}return;}
       if(id){
+        // Edição: atualiza apenas o registro atual (1 item)
+        const obj={...cab,...itens[0]};
         await sbFetch(`rc_gimba?id=eq.${id}`,{method:'PATCH',body:obj,noBody:true});
         const idx=recs.findIndex(r=>r.id===id);
         if(idx>=0)recs[idx]={...recs[idx],...obj};
       }else{
-        const novo=await sbFetch('rc_gimba',{method:'POST',body:obj,prefer:'return=representation'});
-        if(novo?.[0])recs.unshift(novo[0]);
+        // Novo: cria 1 registro por item
+        for(const it of itens){
+          const novo=await sbFetch('rc_gimba',{method:'POST',body:{...cab,...it},prefer:'return=representation'});
+          if(novo?.[0])recs.unshift(novo[0]);
+        }
       }
       mClose();render();
     }catch(e){showMErr(e.message);if(btn){btn.disabled=false;btn.textContent='Salvar';}}
@@ -3909,7 +4120,10 @@ PAGES.contratos=async(el)=>{
       <td>${escH(r.recorrencia||'—')}</td>
       <td style="font-weight:700;color:var(--blue)">${r.valor_unitario!=null?'R$ '+fmt(r.valor_unitario,2):'—'}</td>
       <td style="font-weight:700">${r.total_mes!=null?'R$ '+fmt(r.total_mes,2):'—'}</td>
-      <td><button class="btn btn-sm btn-o" onclick="ctDetalhe(${r.id})">Detalhes</button></td>
+      <td style="display:flex;gap:5px;flex-wrap:nowrap">
+        <button class="btn btn-sm btn-p" onclick="ctEditar(${r.id})">Editar</button>
+        <button class="btn btn-sm btn-o" onclick="ctDetalhe(${r.id})">Detalhes</button>
+      </td>
     </tr>`).join('');
   }
 
@@ -3917,6 +4131,7 @@ PAGES.contratos=async(el)=>{
   const totalMes=ativos.reduce((s,r)=>s+(r.total_mes||0),0);
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px">
+      <button class="btn btn-p" onclick="ctNovo()">+ Novo Contrato</button>
       <input placeholder="Buscar serviço, fornecedor, CNPJ…" id="ctQ" style="flex:1;min-width:180px;max-width:280px" oninput="render_ct(this.value)"/>
       <select id="ctFiltroAtivo" onchange="_filtroAtivo=this.value;render(document.getElementById('ctQ').value)">
         <option value="todos">Todos</option>
@@ -3956,6 +4171,82 @@ PAGES.contratos=async(el)=>{
     r.ativo=novoAtivo;
     render(document.getElementById('ctQ')?.value||'');
   };
+  function ctFormHTML(r){
+    return`<div class="fg">
+      <div class="fgp full"><label>Serviço (nome completo)*</label><input id="ctFServ" value="${escH(r?.servico||'')}"/></div>
+      <div class="fgp full"><label>Serviço Resumido</label><input id="ctFServRes" value="${escH(r?.servico_resumido||'')}"/></div>
+      <div class="fgp full"><label>Razão Social*</label><input id="ctFRaz" value="${escH(r?.razao_social||'')}"/></div>
+      <div class="fgp"><label>CNPJ</label><input id="ctFCNPJ" value="${escH(r?.cnpj||'')}" placeholder="00.000.000/0001-00"/></div>
+      <div class="fgp"><label>Conta Contábil</label><input id="ctFConta" value="${escH(r?.conta_contabil||'')}"/></div>
+      <div class="fgp"><label>Local</label><input id="ctFLocal" value="${escH(r?.local||'')}"/></div>
+      <div class="fgp"><label>Tipo de Contrato</label><select id="ctFTipo">
+        ${['Serviço','Material','Manutenção','Limpeza','Segurança','Locação','Outro'].map(t=>`<option${(r?.tipo_contrato||'Serviço')===t?' selected':''}>${t}</option>`).join('')}
+      </select></div>
+      <div class="fgp"><label>Recorrência</label><select id="ctFRec">
+        ${['Mensal','Trimestral','Semestral','Anual','Único','Sob demanda'].map(t=>`<option${(r?.recorrencia||'Mensal')===t?' selected':''}>${t}</option>`).join('')}
+      </select></div>
+      <div class="fgp"><label>Qtd. Unitária</label><input type="number" id="ctFQtd" step="0.01" value="${r?.quantidade_unitaria??''}"/></div>
+      <div class="fgp"><label>Valor Unitário (R$)</label><input type="number" id="ctFVU" step="0.01" value="${r?.valor_unitario??''}" oninput="ctCalcTotal()"/></div>
+      <div class="fgp"><label>Total/Mês (R$)</label><input type="number" id="ctFTM" step="0.01" value="${r?.total_mes??''}"/></div>
+      <div class="fgp"><label>Status</label><select id="ctFAtivo">
+        <option value="true"${r?.ativo!==false?' selected':''}>Ativo</option>
+        <option value="false"${r?.ativo===false?' selected':''}>Inativo</option>
+      </select></div>
+      <div class="fgp full"><label>Instruções / Condições</label><textarea id="ctFInst" rows="2">${escH(r?.instrucoes||'')}</textarea></div>
+      <div class="fgp full"><label>Contato</label><input id="ctFCont" value="${escH(r?.contato||'')}"/></div>
+    </div>`;
+  }
+  window.ctCalcTotal=()=>{
+    const vu=parseFloat(document.getElementById('ctFVU')?.value)||0;
+    const qtd=parseFloat(document.getElementById('ctFQtd')?.value)||1;
+    const tm=document.getElementById('ctFTM');
+    if(tm&&!tm.dataset.manual)tm.value=(vu*qtd).toFixed(2);
+  };
+  window.ctNovo=()=>{
+    mOpen('Novo Contrato',ctFormHTML(null),
+      `<button class="btn btn-o" onclick="mClose()">Cancelar</button>
+       <button class="btn btn-p" onclick="ctSalvar()">Salvar</button>`);
+  };
+  window.ctEditar=(id)=>{
+    const r=recs.find(x=>x.id===id);if(!r)return;
+    mOpen('Editar Contrato',ctFormHTML(r),
+      `<button class="btn btn-o" onclick="mClose()">Cancelar</button>
+       <button class="btn btn-r" onclick="ctDel(${id})">Excluir</button>
+       <button class="btn btn-p" onclick="ctSalvar(${id})">Salvar</button>`);
+  };
+  window.ctSalvar=async(id)=>{
+    const g=(i)=>document.getElementById(i)?.value?.trim()||null;
+    const gn=(i)=>{const v=parseFloat(document.getElementById(i)?.value);return isNaN(v)?null:v;};
+    const serv=g('ctFServ');const raz=g('ctFRaz');
+    if(!serv||!raz){showMErr('Serviço e Razão Social são obrigatórios.');return;}
+    const btn=document.querySelector('#mFoot .btn-p');
+    if(btn){btn.disabled=true;btn.textContent='Salvando…';}
+    try{
+      const obj={
+        servico:serv,servico_resumido:g('ctFServRes'),razao_social:raz,
+        cnpj:g('ctFCNPJ'),conta_contabil:g('ctFConta'),local:g('ctFLocal'),
+        tipo_contrato:g('ctFTipo'),recorrencia:g('ctFRec'),
+        quantidade_unitaria:gn('ctFQtd'),valor_unitario:gn('ctFVU'),total_mes:gn('ctFTM'),
+        instrucoes:g('ctFInst'),contato:g('ctFCont'),
+        ativo:document.getElementById('ctFAtivo')?.value!=='false'
+      };
+      if(id){
+        await sbFetch(`contratos?id=eq.${id}`,{method:'PATCH',body:obj,noBody:true});
+        const idx=recs.findIndex(r=>r.id===id);
+        if(idx>=0)recs[idx]={...recs[idx],...obj};
+      }else{
+        const novo=await sbFetch('contratos',{method:'POST',body:obj,prefer:'return=representation'});
+        if(novo?.[0])recs.unshift(novo[0]);
+      }
+      mClose();render(document.getElementById('ctQ')?.value||'');
+    }catch(e){showMErr(e.message);if(btn){btn.disabled=false;btn.textContent='Salvar';}}
+  };
+  window.ctDel=async(id)=>{
+    if(!confirm('Excluir este contrato permanentemente?'))return;
+    await sbFetch(`contratos?id=eq.${id}`,{method:'DELETE',noBody:true});
+    recs=recs.filter(r=>r.id!==id);
+    mClose();render(document.getElementById('ctQ')?.value||'');
+  };
   window.ctDetalhe=async(id)=>{
     const r=recs.find(x=>x.id===id);if(!r)return;
     mOpen(escH(r.servico_resumido||r.servico||'Contrato'),`
@@ -3971,7 +4262,8 @@ PAGES.contratos=async(el)=>{
         <div class="fgp full"><label>Instruções</label><div style="padding:8px;background:var(--off);border-radius:6px;font-size:.87rem">${escH(r.instrucoes||'—')}</div></div>
         <div class="fgp full"><label>Contato</label><div style="padding:8px;background:var(--off);border-radius:6px">${escH(r.contato||'—')}</div></div>
       </div>`,
-      `<button class="btn btn-o" onclick="mClose()">Fechar</button>`);
+      `<button class="btn btn-o" onclick="mClose()">Fechar</button>
+       <button class="btn btn-p" onclick="mClose();ctEditar(${id})">Editar</button>`);
   };
   render();
 };
