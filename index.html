@@ -2210,7 +2210,7 @@ PAGES.produtos=async(el)=>{
         const rcPrice=rc?.unitPrice||null;
         const vlrEstoque=p.saldo*(rcPrice??p.preco??0);
         const rcCell=rc
-          ?`<td style="font-size:.75rem;color:var(--blue)"><strong>R$ ${fmt(rcPrice||0,2)}</strong><br><span style="color:var(--lt);font-size:.68rem">${escH(rc.competencia||rc.fornecedor||'—')}</span></td>`
+          ?`<td style="font-size:.75rem;color:var(--blue)"><strong>R$ ${fmt(rcPrice||0,2)}</strong><br><span style="color:var(--lt);font-size:.68rem">${escH((()=>{const v=rc.competencia||'';const m=v.match(/^(\d{4})-(\d{2})/);return m?['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m[2]-1]+'.'+m[1]:v||rc.fornecedor||'—';})())}</span></td>`
           :`<td style="color:var(--lt);font-size:.75rem">—</td>`;
         return`<tr data-q="${(p.nome+p.codigo).toLowerCase()}" data-id="${p.id}">
           <td><input type="checkbox" class="prod-chk" onchange="prodChkChange()" data-id="${p.id}"/></td>
