@@ -3803,108 +3803,170 @@ window.exportCSV=function(data,cols,filename){
 
 // ── PA vs REALIZADO ───────────────────────────────────────────────────────────
 PAGES.pa_realizado=async(el)=>{
-  // Carrega NFs e PA salvo em paralelo
-  const [nfs, paRecs] = await Promise.all([
-    dbGetAll('notas_fiscais').catch(()=>[]),
-    dbGetAll('pa_contas').catch(()=>[])
-  ]);
+  const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  let ano=2026;
 
-  // Mapa PA: conta_contabil -> {id, pa_valor}
-  const paMap={};
-  paRecs.forEach(r=>{if(r.conta_contabil)paMap[r.conta_contabil]={id:r.id,pa:r.pa_valor||0};});
-
-  // Realizado: agrupa NFs por conta_contabil
-  const realMap={};
-  nfs.forEach(n=>{
-    const c=(n.conta_contabil||'').trim();
-    if(!c)return;
-    realMap[c]=(realMap[c]||0)+(n.valor||0);
-  });
-
-  // Lista de todas as contas (união de PA e NFs)
-  const contas=[...new Set([...Object.keys(paMap),...Object.keys(realMap)])].sort();
-
-  // Estado de edição inline
-  const editando={};
-
-  function paRender(){
-    const q=(document.getElementById('paQ')?.value||'').trim().toLowerCase();
-    const listaFilt=q?contas.filter(c=>c.toLowerCase().includes(q)):contas;
-    const total_pa=contas.reduce((s,c)=>(paMap[c]?.pa||0)+s,0);
-    const total_real=contas.reduce((s,c)=>(realMap[c]||0)+s,0);
-    const saldo=total_pa-total_real;
-    document.getElementById('pa-kpis').innerHTML=`
-      <div class="kpi-card"><div class="kpi-lbl">Total PA</div><div class="kpi-val" style="color:var(--blue)">R$ ${fmt(total_pa,2)}</div></div>
-      <div class="kpi-card"><div class="kpi-lbl">Total Realizado</div><div class="kpi-val" style="color:var(--green)">R$ ${fmt(total_real,2)}</div></div>
-      <div class="kpi-card"><div class="kpi-lbl">Saldo</div><div class="kpi-val" style="color:${saldo>=0?'var(--green)':'var(--red)'}">R$ ${fmt(saldo,2)}</div></div>
-      <div class="kpi-card"><div class="kpi-lbl">% Executado</div><div class="kpi-val" style="color:var(--blue)">${total_pa?((total_real/total_pa)*100).toFixed(1)+'%':'—'}</div></div>
-      <div class="kpi-card"><div class="kpi-lbl">Contas</div><div class="kpi-val">${contas.length}</div></div>`;
-    const tbody=document.getElementById('pa-tbody');
-    tbody.innerHTML=listaFilt.map((c,idx)=>{
-      const pa=paMap[c]?.pa||0;
-      const real=realMap[c]||0;
-      const saldo=pa-real;
-      const pct=pa?(real/pa*100):null;
-      const barW=pa?Math.min(100,real/pa*100).toFixed(1):0;
-      const barColor=pct==null?'var(--lt)':pct>100?'var(--red)':pct>80?'#f59e0b':'var(--green)';
-      return`<tr>
-        <td style="font-size:.8rem;max-width:260px">${escH(c)}</td>
-        <td>
-          <div style="display:flex;align-items:center;gap:8px">
-            <input type="number" step="0.01" class="pa-inp" data-conta="${escH(c)}" value="${pa||''}" placeholder="0,00"
-              style="width:120px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;text-align:right"
-              onchange="paSalvar('${escH(c)}',this.value)"/>
-          </div>
-        </td>
-        <td style="font-weight:600;color:var(--green);text-align:right">R$ ${fmt(real,2)}</td>
-        <td style="text-align:right;font-weight:600;color:${saldo>=0?'var(--blue)':'var(--red)'}">R$ ${fmt(saldo,2)}</td>
-        <td style="min-width:140px">
-          <div style="display:flex;align-items:center;gap:6px">
-            <div style="flex:1;background:var(--off);border-radius:4px;height:12px;overflow:hidden">
-              <div style="width:${barW}%;background:${barColor};height:100%;border-radius:4px;transition:.3s"></div>
-            </div>
-            <span style="font-size:.75rem;font-weight:700;min-width:38px;color:${barColor}">${pct!=null?pct.toFixed(1)+'%':'—'}</span>
-          </div>
-        </td>
-      </tr>`;
-    }).join('')||`<tr><td colspan="5" class="tlt" style="text-align:center;padding:32px">Nenhuma conta encontrada</td></tr>`;
+  function parseComp(v){
+    if(!v)return null;
+    const s=String(v).trim();
+    let m=s.match(/^(\d{4})-(\d{2})/);
+    if(m)return{ano:+m[1],mes:+m[2]};
+    m=s.match(/^([a-zA-Z]{3})[.\/\s]?(\d{4})/i);
+    if(m){const mi=MESES.findIndex(x=>x.toLowerCase()===m[1].toLowerCase());if(mi>=0)return{ano:+m[2],mes:mi+1};}
+    return null;
   }
 
-  window._paRender=paRender;
+  async function loadData(){
+    const [nfs,paRecs]=await Promise.all([
+      dbGetAll('notas_fiscais').catch(()=>[]),
+      dbGetAll('pa_contas').catch(()=>[])
+    ]);
+    // paMap[conta][mes] = {id, valor}
+    const paMap={};
+    paRecs.forEach(r=>{
+      if(!r.conta_contabil)return;
+      const a=r.ano||2026,m=r.mes;
+      if(a!==ano)return;
+      if(!paMap[r.conta_contabil])paMap[r.conta_contabil]={};
+      paMap[r.conta_contabil][m]={id:r.id,valor:r.pa_valor||0};
+    });
+    // realMap[conta][mes] = valor
+    const realMap={};
+    nfs.forEach(n=>{
+      const c=(n.conta_contabil||'').trim();if(!c)return;
+      const comp=parseComp(n.competencia||n.criado_em);
+      if(!comp||comp.ano!==ano)return;
+      if(!realMap[c])realMap[c]={};
+      realMap[c][comp.mes]=(realMap[c][comp.mes]||0)+(n.valor||0);
+    });
+    const contas=[...new Set([...Object.keys(paMap),...Object.keys(realMap)])].sort();
+    return{paMap,realMap,contas,nfs,paRecs};
+  }
 
-  window.paSalvar=async(conta,val)=>{
+  let {paMap,realMap,contas}=await loadData();
+
+  window.paSalvarMes=async(conta,mes,val)=>{
     const v=parseFloat(val)||0;
     try{
-      if(paMap[conta]?.id){
-        await sbFetch(`pa_contas?id=eq.${paMap[conta].id}`,{method:'PATCH',body:{pa_valor:v,atualizado_em:now()},noBody:true});
-        paMap[conta].pa=v;
+      const ex=paMap[conta]?.[mes];
+      if(ex?.id){
+        await sbFetch(`pa_contas?id=eq.${ex.id}`,{method:'PATCH',body:{pa_valor:v,atualizado_em:now()},noBody:true});
+        paMap[conta][mes].valor=v;
       }else{
-        const novo=await sbFetch('pa_contas',{method:'POST',body:{conta_contabil:conta,pa_valor:v},prefer:'return=representation'});
-        if(novo?.[0])paMap[conta]={id:novo[0].id,pa:v};
-        else paMap[conta]={id:null,pa:v};
+        const novo=await sbFetch('pa_contas',{method:'POST',body:{conta_contabil:conta,ano,mes,pa_valor:v},prefer:'return=representation'});
+        if(!paMap[conta])paMap[conta]={};
+        paMap[conta][mes]={id:novo?.[0]?.id,valor:v};
       }
-      paRender();
-    }catch(e){showMErr('Erro ao salvar PA: '+e.message);}
+      paUpdateTotals();
+    }catch(e){showMErr('Erro ao salvar: '+e.message);}
   };
 
-  el.innerHTML=`
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-      <input id="paQ" placeholder="Filtrar conta contábil…" style="flex:1;min-width:220px;max-width:360px" oninput="_paRender()"/>
-      <span style="font-size:.75rem;color:var(--lt)">Edite o PA diretamente na tabela — salva automaticamente ao sair do campo</span>
-    </div>
-    <div id="pa-kpis" class="kpi-grid" style="margin-bottom:16px"></div>
-    <div class="tbl-wrap"><table id="pa-tbl">
-      <thead><tr>
-        <th onclick="sortTbl('pa-tbl',0)" style="cursor:pointer">Conta Contábil <span class="sico">⇅</span></th>
-        <th onclick="sortTbl('pa-tbl',1,'num')" style="cursor:pointer">PA (R$) <span class="sico">⇅</span></th>
-        <th onclick="sortTbl('pa-tbl',2,'num')" style="cursor:pointer;text-align:right">Realizado (R$) <span class="sico">⇅</span></th>
-        <th onclick="sortTbl('pa-tbl',3,'num')" style="cursor:pointer;text-align:right">Saldo <span class="sico">⇅</span></th>
-        <th>% Executado</th>
-      </tr></thead>
-      <tbody id="pa-tbody"></tbody>
-    </table></div>`;
+  function paGetPA(c,m){return paMap[c]?.[m]?.valor||0;}
+  function paGetReal(c,m){return realMap[c]?.[m]||0;}
 
-  paRender();
+  function paUpdateTotals(){
+    const q=(document.getElementById('paQ')?.value||'').toLowerCase();
+    const lista=q?contas.filter(c=>c.toLowerCase().includes(q)):contas;
+    // Update per-row totals
+    lista.forEach(c=>{
+      const totPA=[1,2,3,4,5,6,7,8,9,10,11,12].reduce((s,m)=>s+paGetPA(c,m),0);
+      const totReal=[1,2,3,4,5,6,7,8,9,10,11,12].reduce((s,m)=>s+paGetReal(c,m),0);
+      const saldo=totPA-totReal;
+      const pct=totPA?(totReal/totPA*100):null;
+      const key=c.replace(/[^a-z0-9]/gi,'_');
+      const el1=document.getElementById('pa-tot-pa-'+key);
+      const el2=document.getElementById('pa-tot-real-'+key);
+      const el3=document.getElementById('pa-tot-sal-'+key);
+      const el4=document.getElementById('pa-tot-pct-'+key);
+      if(el1)el1.textContent='R$ '+fmt(totPA,0);
+      if(el2)el2.textContent='R$ '+fmt(totReal,0);
+      if(el3){el3.textContent='R$ '+fmt(saldo,0);el3.style.color=saldo>=0?'var(--blue)':'var(--red)';}
+      if(el4)el4.textContent=pct!=null?pct.toFixed(1)+'%':'—';
+    });
+    // Grand totals
+    const gtPA=lista.reduce((s,c)=>[1,2,3,4,5,6,7,8,9,10,11,12].reduce((ss,m)=>ss+paGetPA(c,m),s),0);
+    const gtReal=lista.reduce((s,c)=>[1,2,3,4,5,6,7,8,9,10,11,12].reduce((ss,m)=>ss+paGetReal(c,m),s),0);
+    const gtSaldo=gtPA-gtReal;
+    document.getElementById('pa-kpis').innerHTML=`
+      <div class="kpi-card"><div class="kpi-lbl">Total PA ${ano}</div><div class="kpi-val" style="color:var(--blue)">R$ ${fmt(gtPA,2)}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Total Realizado</div><div class="kpi-val" style="color:var(--green)">R$ ${fmt(gtReal,2)}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Saldo</div><div class="kpi-val" style="color:${gtSaldo>=0?'var(--blue)':'var(--red)'}">R$ ${fmt(gtSaldo,2)}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">% Executado</div><div class="kpi-val" style="color:#f59e0b">${gtPA?((gtReal/gtPA)*100).toFixed(1)+'%':'—'}</div></div>
+      <div class="kpi-card"><div class="kpi-lbl">Contas</div><div class="kpi-val">${lista.length}</div></div>`;
+  }
+
+  function paRenderTabela(){
+    const q=(document.getElementById('paQ')?.value||'').toLowerCase();
+    const lista=q?contas.filter(c=>c.toLowerCase().includes(q)):contas;
+    const tbody=document.getElementById('pa-tbody');
+    if(!tbody)return;
+    tbody.innerHTML=lista.map(c=>{
+      const key=c.replace(/[^a-z0-9]/gi,'_');
+      const mCells=[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>{
+        const pa=paGetPA(c,m);
+        const real=paGetReal(c,m);
+        const pct=pa?(real/pa*100):null;
+        const barColor=pct==null?'var(--off)':pct>100?'#fecaca':pct>80?'#fef9c3':'#bbf7d0';
+        // Encode conta for safe inline use
+        const cSafe=c.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return`<td style="padding:4px 6px;background:${real||pa?barColor:'transparent'};min-width:110px">
+          <div style="font-size:.68rem;color:var(--lt);text-align:right">${real?'R$ '+fmt(real,0):''}</div>
+          <input type="number" step="0.01" value="${pa||''}" placeholder="—"
+            style="width:100%;border:none;border-bottom:1px solid var(--border);background:transparent;font-size:.78rem;text-align:right;padding:1px 2px;outline:none"
+            onchange="paSalvarMes('${cSafe}',${m},this.value)"
+            title="PA: R$ ${fmt(pa,2)} | Realizado: R$ ${fmt(real,2)}"/>
+          ${pct!=null?`<div style="font-size:.62rem;font-weight:700;text-align:right;color:${pct>100?'var(--red)':pct>80?'#92400e':'#166534'}">${pct.toFixed(0)}%</div>`:''}
+        </td>`;
+      }).join('');
+      const totPA=[1,2,3,4,5,6,7,8,9,10,11,12].reduce((s,m)=>s+paGetPA(c,m),0);
+      const totReal=[1,2,3,4,5,6,7,8,9,10,11,12].reduce((s,m)=>s+paGetReal(c,m),0);
+      const saldo=totPA-totReal;
+      const pct=totPA?(totReal/totPA*100):null;
+      return`<tr>
+        <td style="font-size:.75rem;font-weight:600;white-space:nowrap;position:sticky;left:0;background:var(--bg);z-index:1;padding:6px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${escH(c)}">${escH(c)}</td>
+        ${mCells}
+        <td style="font-weight:700;text-align:right;color:var(--blue);white-space:nowrap;padding:4px 6px" id="pa-tot-pa-${key}">R$ ${fmt(totPA,0)}</td>
+        <td style="font-weight:700;text-align:right;color:var(--green);white-space:nowrap;padding:4px 6px" id="pa-tot-real-${key}">R$ ${fmt(totReal,0)}</td>
+        <td style="font-weight:700;text-align:right;white-space:nowrap;padding:4px 6px;color:${saldo>=0?'var(--blue)':'var(--red)'}" id="pa-tot-sal-${key}">R$ ${fmt(saldo,0)}</td>
+        <td style="font-weight:700;text-align:right;padding:4px 6px;color:#92400e" id="pa-tot-pct-${key}">${pct!=null?pct.toFixed(1)+'%':'—'}</td>
+      </tr>`;
+    }).join('')||`<tr><td colspan="17" class="tlt" style="text-align:center;padding:32px">Nenhuma conta</td></tr>`;
+    paUpdateTotals();
+  }
+
+  window._paRender=()=>{paRenderTabela();};
+
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <input id="paQ" placeholder="Filtrar conta contábil…" style="flex:1;min-width:200px;max-width:320px" oninput="_paRender()"/>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:.75rem;color:var(--lt)">Ano:</label>
+        <select onchange="window._paAno=+this.value;ano=+this.value;_paRender()" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border)">
+          <option value="2025">2025</option>
+          <option value="2026" selected>2026</option>
+          <option value="2027">2027</option>
+        </select>
+      </div>
+      <span style="font-size:.72rem;color:var(--lt)">Cada célula: campo superior = PA (editável) · valor abaixo = realizado das NFs · % = execução</span>
+    </div>
+    <div id="pa-kpis" class="kpi-grid" style="margin-bottom:14px"></div>
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
+      <table id="pa-tbl" style="border-collapse:collapse;min-width:1400px;width:100%">
+        <thead>
+          <tr style="background:var(--off)">
+            <th style="position:sticky;left:0;background:var(--off);z-index:2;padding:8px;text-align:left;font-size:.72rem;white-space:nowrap;min-width:180px">Conta Contábil</th>
+            ${MESES.map((m,i)=>`<th style="padding:6px;font-size:.7rem;text-align:center;min-width:110px;border-left:1px solid var(--border)"><div style="font-weight:700">${m}</div><div style="font-size:.6rem;color:var(--lt);font-weight:400">PA / Real</div></th>`).join('')}
+            <th style="padding:6px;font-size:.7rem;text-align:right;border-left:2px solid var(--blue);color:var(--blue);white-space:nowrap">Total PA</th>
+            <th style="padding:6px;font-size:.7rem;text-align:right;color:var(--green);white-space:nowrap">Total Real.</th>
+            <th style="padding:6px;font-size:.7rem;text-align:right;white-space:nowrap">Saldo</th>
+            <th style="padding:6px;font-size:.7rem;text-align:right;white-space:nowrap">% Exec.</th>
+          </tr>
+        </thead>
+        <tbody id="pa-tbody"></tbody>
+      </table>
+    </div>`;
+
+  paRenderTabela();
 };
 
 // ── RC / GIMBA ────────────────────────────────────────────────────────────────
