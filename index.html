@@ -927,7 +927,135 @@ PAGES.dashboard=async(el)=>{
       </tbody></table></div>`
     :'<div class="tlt">Nenhum pedido Entregue ou Em Separação ainda.</div>'}
     </div>
+  </div>
+
+  ${await (async()=>{
+    // ── Capítulo 5: RC/GIMBA ──
+    const [rg,ct,nf]=await Promise.all([
+      dbGetAll('rc_gimba').catch(()=>[]),
+      dbGetAll('contratos').catch(()=>[]),
+      dbGetAll('notas_fiscais').catch(()=>[])
+    ]);
+    const fmtComp=(v)=>{if(!v)return'—';const s=String(v);const m=s.match(/^(\d{4})-(\d{2})/);if(m){const ms=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return(ms[parseInt(m[2])-1]||m[2])+'.'+m[1];}return s;};
+    // RC/GIMBA stats
+    const rgTotal=rg.reduce((s,r)=>s+(r.total_oc||0),0);
+    const rgStatus={};rg.forEach(r=>{rgStatus[r.status||'—']=(rgStatus[r.status||'—']||0)+1;});
+    const rgForn={};rg.forEach(r=>{if(r.fornecedor&&r.total_oc){rgForn[r.fornecedor]=(rgForn[r.fornecedor]||0)+(r.total_oc||0);}});
+    const topForn=Object.entries(rgForn).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const maxForn=topForn[0]?.[1]||1;
+    // RC/GIMBA por mês (últimos 6)
+    const hoje2=new Date();
+    const meses6=[];for(let i=5;i>=0;i--){const d=new Date(hoje2.getFullYear(),hoje2.getMonth()-i,1);meses6.push(d.toISOString().slice(0,7));}
+    const rgPorMes={};meses6.forEach(m=>{rgPorMes[m]=0;});
+    rg.forEach(r=>{const c=String(r.competencia||'');const m=c.match(/^(\d{4})-(\d{2})/);if(m){const k=m[1]+'-'+m[2];if(rgPorMes[k]!==undefined)rgPorMes[k]+=(r.total_oc||0);}});
+    const maxRg=Math.max(...Object.values(rgPorMes),1);
+    const mesesLabel=meses6.map(m=>{const[y,mo]=m.split('-');return['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+mo-1]+'/'+y.slice(2);});
+    const chartH2=100,bW2=28,gap2=14,sX2=36,cW2=sX2+6*(bW2+gap2)+10;
+    const rgBars=meses6.map((m,i)=>{const v=rgPorMes[m];const x=sX2+i*(bW2+gap2);const h=Math.round((v/maxRg)*(chartH2-20));return`<rect x="${x}" y="${chartH2-20-h}" width="${bW2}" height="${h}" fill="var(--blue)" rx="2" opacity=".8"/>
+      <text x="${x+bW2/2}" y="${chartH2-4}" text-anchor="middle" font-size="8" fill="#7a8ab0">${mesesLabel[i]}</text>
+      ${v>0?`<text x="${x+bW2/2}" y="${chartH2-22-h}" text-anchor="middle" font-size="7" fill="var(--blue)" font-weight="700">R$${v>=1000?(v/1000).toFixed(0)+'k':v.toFixed(0)}</text>`:''}`}).join('');
+    // Contratos stats
+    const ctAtivos=ct.filter(c=>c.ativo!==false);
+    const ctInativos=ct.filter(c=>c.ativo===false);
+    const totalMes=ctAtivos.reduce((s,c)=>s+(c.total_mes||0),0);
+    // NF stats
+    const nfTotal=nf.reduce((s,n)=>s+(n.valor||0),0);
+    const nfStatus={};nf.forEach(n=>{nfStatus[n.status||'Pendente']=(nfStatus[n.status||'Pendente']||0)+1;});
+    const nfPorMes={};meses6.forEach(m=>{nfPorMes[m]=0;});
+    nf.forEach(n=>{const c=String(n.competencia||n.criado_em||'');const m=c.match(/^(\d{4})-(\d{2})/);if(m){const k=m[1]+'-'+m[2];if(nfPorMes[k]!==undefined)nfPorMes[k]+=(n.valor||0);}});
+    const maxNf=Math.max(...Object.values(nfPorMes),1);
+    const nfBars=meses6.map((m,i)=>{const v=nfPorMes[m];const x=sX2+i*(bW2+gap2);const h=Math.round((v/maxNf)*(chartH2-20));return`<rect x="${x}" y="${chartH2-20-h}" width="${bW2}" height="${h}" fill="var(--green)" rx="2" opacity=".8"/>
+      <text x="${x+bW2/2}" y="${chartH2-4}" text-anchor="middle" font-size="8" fill="#7a8ab0">${mesesLabel[i]}</text>
+      ${v>0?`<text x="${x+bW2/2}" y="${chartH2-22-h}" text-anchor="middle" font-size="7" fill="var(--green)" font-weight="700">R$${v>=1000?(v/1000).toFixed(0)+'k':v.toFixed(0)}</text>`:''}`}).join('');
+
+    return`
+  <!-- STORY 5: RC/GIMBA -->
+  <div style="display:flex;align-items:center;gap:8px;margin:28px 0 10px">
+    <div style="width:4px;height:28px;background:var(--blue);border-radius:2px"></div>
+    <div>
+      <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--lt)">Capítulo 5</div>
+      <div style="font-size:.97rem;font-weight:800;color:var(--blue)">RC / GIMBA — Compras & Ordens</div>
+    </div>
+  </div>
+  <div class="kpi-grid" style="margin-bottom:16px">
+    <div class="kpi-card"><div class="kpi-lbl">Total Registros</div><div class="kpi-val">${rg.length}</div></div>
+    <div class="kpi-card"><div class="kpi-lbl">Valor Total OC</div><div class="kpi-val" style="font-size:1.1rem;color:var(--blue)">R$ ${fmt(rgTotal,2)}</div></div>
+    <div class="kpi-card"><div class="kpi-lbl">RC</div><div class="kpi-val">${rg.filter(r=>r.origem==='RC').length}</div></div>
+    <div class="kpi-card"><div class="kpi-lbl">Gimba</div><div class="kpi-val">${rg.filter(r=>r.origem==='Gimba').length}</div></div>
+    ${Object.entries(rgStatus).slice(0,2).map(([s,n])=>`<div class="kpi-card"><div class="kpi-lbl">${escH(s)}</div><div class="kpi-val">${n}</div></div>`).join('')}
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px">
+    <div class="card" style="padding:16px">
+      <div class="ctitle">Valor OC por Competência — Últimos 6 meses</div>
+      <svg viewBox="0 0 ${cW2} ${chartH2}" width="100%" style="overflow:visible">
+        <line x1="${sX2}" y1="${chartH2-20}" x2="${cW2-10}" y2="${chartH2-20}" stroke="#dce3f5" stroke-width="1"/>
+        ${rgBars}
+      </svg>
+    </div>
+    <div class="card" style="padding:16px">
+      <div class="ctitle">Top 5 Fornecedores — Valor OC</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        ${topForn.map(([f,v])=>`<div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.72rem;width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0" title="${escH(f)}">${escH(f)}</span>
+          <div style="flex:1;background:var(--off);border-radius:2px;height:14px">
+            <div style="width:${(v/maxForn*100).toFixed(1)}%;background:var(--blue);height:100%;border-radius:2px"></div>
+          </div>
+          <span style="font-size:.72rem;font-weight:700;min-width:80px;text-align:right;color:var(--blue)">R$ ${fmt(v,0)}</span>
+        </div>`).join('')||'<div class="tlt">Sem dados</div>'}
+      </div>
+    </div>
+  </div>
+
+  <!-- STORY 6: CONTRATOS -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <div style="width:4px;height:28px;background:#8b5cf6;border-radius:2px"></div>
+    <div>
+      <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--lt)">Capítulo 6</div>
+      <div style="font-size:.97rem;font-weight:800;color:var(--blue)">Contratos — Gestão de Fornecedores</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:auto 1fr;gap:14px;margin-bottom:22px;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="kpi-card" style="min-width:140px"><div class="kpi-lbl">Contratos Ativos</div><div class="kpi-val" style="color:#8b5cf6">${ctAtivos.length}</div></div>
+      <div class="kpi-card" style="min-width:140px"><div class="kpi-lbl">Inativos</div><div class="kpi-val" style="color:var(--lt)">${ctInativos.length}</div></div>
+      <div class="kpi-card" style="min-width:140px"><div class="kpi-lbl">Total/Mês (Ativos)</div><div class="kpi-val" style="font-size:1rem;color:#8b5cf6">R$ ${fmt(totalMes,2)}</div></div>
+      <div class="kpi-card" style="min-width:140px"><div class="kpi-lbl">Custo Anual Est.</div><div class="kpi-val" style="font-size:.9rem;color:#8b5cf6">R$ ${fmt(totalMes*12,0)}</div></div>
+    </div>
+    <div class="card" style="padding:16px">
+      <div class="ctitle">Contratos Ativos — Maior Valor Mensal</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+        ${ctAtivos.sort((a,b)=>(b.total_mes||0)-(a.total_mes||0)).slice(0,8).map(c=>{const maxC=ctAtivos[0]?.total_mes||1;return`<div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.71rem;width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0" title="${escH(c.servico||'')}">${escH(c.servico_resumido||c.servico||'—')}</span>
+          <div style="flex:1;background:var(--off);border-radius:2px;height:14px">
+            <div style="width:${((c.total_mes||0)/maxC*100).toFixed(1)}%;background:#8b5cf6;height:100%;border-radius:2px"></div>
+          </div>
+          <span style="font-size:.71rem;font-weight:700;min-width:85px;text-align:right;color:#8b5cf6">R$ ${fmt(c.total_mes||0,2)}/mês</span>
+        </div>`}).join('')||'<div class="tlt">Sem contratos ativos</div>'}
+      </div>
+    </div>
+  </div>
+
+  <!-- STORY 7: NOTAS FISCAIS -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <div style="width:4px;height:28px;background:var(--green);border-radius:2px"></div>
+    <div>
+      <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--lt)">Capítulo 7</div>
+      <div style="font-size:.97rem;font-weight:800;color:var(--blue)">Notas Fiscais — Lançamentos</div>
+    </div>
+  </div>
+  <div class="kpi-grid" style="margin-bottom:16px">
+    <div class="kpi-card"><div class="kpi-lbl">Total NFs</div><div class="kpi-val">${nf.length}</div></div>
+    <div class="kpi-card"><div class="kpi-lbl">Valor Total</div><div class="kpi-val" style="font-size:1.1rem;color:var(--green)">R$ ${fmt(nfTotal,2)}</div></div>
+    ${Object.entries(nfStatus).map(([s,n])=>`<div class="kpi-card"><div class="kpi-lbl">${escH(s)}</div><div class="kpi-val">${n}</div></div>`).join('')}
+  </div>
+  <div class="card" style="padding:16px;margin-bottom:8px">
+    <div class="ctitle">Valor NFs por Competência — Últimos 6 meses</div>
+    <svg viewBox="0 0 ${cW2} ${chartH2}" width="100%" style="overflow:visible">
+      <line x1="${sX2}" y1="${chartH2-20}" x2="${cW2-10}" y2="${chartH2-20}" stroke="#dce3f5" stroke-width="1"/>
+      ${nfBars}
+    </svg>
   </div>`;
+  })()}`;
 };
 
 /* ─── MARIO IA ───────────────────────────────────── */
@@ -1990,8 +2118,21 @@ window.filtEVStatus=(s)=>{
 
 /* ─── PRODUTOS ───────────────── */
 PAGES.produtos=async(el)=>{
-  const prods=await dbGetAll('produtos');
+  const [prods, rcData]=await Promise.all([dbGetAll('produtos'), dbGetAll('rc_gimba').catch(()=>[])]);
   prods.sort((a,b)=>a.nome.localeCompare(b.nome));
+  // última compra por produto: busca rc_gimba onde descricao contém nome do produto
+  const lastRcMap={};
+  rcData.sort((a,b)=>a.id-b.id).forEach(r=>{
+    const desc=(r.descricao||'').toLowerCase();
+    prods.forEach(p=>{
+      const nome=p.nome.toLowerCase();
+      if(nome.length>=4 && desc.includes(nome)){
+        const unitPrice=r.total_oc&&r.quantidade?(r.total_oc/r.quantidade):null;
+        if(!lastRcMap[p.id]||r.id>lastRcMap[p.id].id)
+          lastRcMap[p.id]={id:r.id,total_oc:r.total_oc,quantidade:r.quantidade,unitPrice,competencia:r.competencia,fornecedor:r.fornecedor};
+      }
+    });
+  });
   el.innerHTML=`
     <div class="row" style="margin-bottom:14px;flex-wrap:wrap;gap:8px">
       <input id="srch" placeholder="Buscar produto ou código…" style="max-width:240px" oninput="filtProd()"/>
@@ -2000,23 +2141,41 @@ PAGES.produtos=async(el)=>{
       <button class="btn btn-p mla" onclick="novoProd()">+ Novo Produto</button>
     </div>
     <div class="card"><div class="tbl-wrap"><table id="tP">
-      <thead><tr><th style="width:36px"><input type="checkbox" id="chkAll" onchange="prodChkAll(this)"/></th><th style="width:40px"></th><th style="cursor:pointer" onclick="sortProd('codigo')">Código ⇅</th><th style="cursor:pointer" onclick="sortProd('nome')">Nome ⇅</th><th>Un.</th><th>Categoria</th><th>Gaiola</th><th>Preço</th><th style="cursor:pointer" onclick="sortProd('saldo')">Saldo ⇅</th><th>Vlr.Estoque</th><th style="cursor:pointer" onclick="sortProd('minimo')">Mín. ⇅</th><th></th></tr></thead>
-      <tbody>${prods.map(p=>`<tr data-q="${(p.nome+p.codigo).toLowerCase()}" data-id="${p.id}">
-        <td><input type="checkbox" class="prod-chk" onchange="prodChkChange()" data-id="${p.id}"/></td>
-        <td style="width:40px">${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;object-fit:cover;border-radius:4px"/>`:'<span style="display:inline-block;width:36px;height:36px;background:var(--off);border-radius:4px"></span>'}</td>
-        <td><code>${escH(p.codigo)}</code></td><td>${escH(p.nome)}</td><td>${p.unidade}</td>
-        <td>${escH(p.categoria||'—')}</td>
-        <td><span class="badge b-out">${escH(p.gaiola||'—')}</span></td>
-        <td>R$ ${fmt(p.preco||0,2)}</td>
-        <td><strong>${fmt(p.saldo,2)}</strong></td>
-        <td style="font-weight:600;color:var(--blue)">R$ ${fmt((p.preco||0)*p.saldo,2)}</td>
-        <td class="${p.saldo<p.minimo?'cr':''}">${fmt(p.minimo,2)}</td>
-        <td class="row" style="gap:5px;flex-wrap:nowrap">
-          <button class="btn btn-o btn-sm" onclick="verHistProd(${p.id},'${escH(p.nome).replace(/'/g,"\\'")}')">Histórico</button>
-          <button class="btn btn-o btn-sm" onclick="editProd(${p.id})">Editar</button>
-          <button class="btn btn-r btn-sm" onclick="delProd(${p.id},'${escH(p.nome).replace(/'/g,"\\'")}')">×</button>
-        </td>
-      </tr>`).join('')||'<tr><td colspan="12" style="text-align:center;color:var(--lt)">Nenhum produto cadastrado.</td></tr>'}
+      <thead><tr>
+        <th style="width:36px"><input type="checkbox" id="chkAll" onchange="prodChkAll(this)"/></th>
+        <th style="width:40px"></th>
+        <th style="cursor:pointer" onclick="sortProd('codigo')">Código ⇅</th>
+        <th style="cursor:pointer" onclick="sortProd('nome')">Nome ⇅</th>
+        <th>Un.</th><th>Gaiola</th>
+        <th>Preço Cad.</th>
+        <th title="Valor unitário da última compra no RC/GIMBA" style="color:var(--blue);cursor:help">Últ. Compra RC ⓘ</th>
+        <th style="cursor:pointer" onclick="sortProd('saldo')">Saldo ⇅</th>
+        <th>Vlr.Estoque</th>
+        <th style="cursor:pointer" onclick="sortProd('minimo')">Mín. ⇅</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${prods.map(p=>{
+        const rc=lastRcMap[p.id];
+        const rcCell=rc
+          ?`<td style="font-size:.75rem;color:var(--blue)"><strong>R$ ${fmt(rc.unitPrice||0,2)}</strong><br><span style="color:var(--lt);font-size:.68rem">${escH(rc.competencia||rc.fornecedor||'—')}</span></td>`
+          :`<td style="color:var(--lt);font-size:.75rem">—</td>`;
+        return`<tr data-q="${(p.nome+p.codigo).toLowerCase()}" data-id="${p.id}">
+          <td><input type="checkbox" class="prod-chk" onchange="prodChkChange()" data-id="${p.id}"/></td>
+          <td style="width:40px">${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;object-fit:cover;border-radius:4px"/>`:'<span style="display:inline-block;width:36px;height:36px;background:var(--off);border-radius:4px"></span>'}</td>
+          <td><code>${escH(p.codigo)}</code></td><td>${escH(p.nome)}</td><td>${p.unidade}</td>
+          <td><span class="badge b-out">${escH(p.gaiola||'—')}</span></td>
+          <td>R$ ${fmt(p.preco||0,2)}</td>
+          ${rcCell}
+          <td><strong>${fmt(p.saldo,2)}</strong></td>
+          <td style="font-weight:600;color:var(--blue)">R$ ${fmt((p.preco||0)*p.saldo,2)}</td>
+          <td class="${p.saldo<p.minimo?'cr':''}">${fmt(p.minimo,2)}</td>
+          <td class="row" style="gap:5px;flex-wrap:nowrap">
+            <button class="btn btn-o btn-sm" onclick="verHistProd(${p.id},'${escH(p.nome).replace(/'/g,"\\'")}')">Histórico</button>
+            <button class="btn btn-o btn-sm" onclick="editProd(${p.id})">Editar</button>
+            <button class="btn btn-r btn-sm" onclick="delProd(${p.id},'${escH(p.nome).replace(/'/g,"\\'")}')">×</button>
+          </td>
+        </tr>`;
+      }).join('')||'<tr><td colspan="13" style="text-align:center;color:var(--lt)">Nenhum produto cadastrado.</td></tr>'}
       </tbody></table></div></div>`;
 };
 window.prodChkChange=()=>{
