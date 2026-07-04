@@ -1995,11 +1995,10 @@ PAGES.produtos=async(el)=>{
       <input id="srch" placeholder="Buscar produto ou código…" style="max-width:240px" oninput="filtProd()"/>
       <button class="btn btn-o" onclick="prodSelAll()" id="btnSelAll">Selecionar Todos</button>
       <button class="btn btn-r" id="btnDelSel" style="display:none" onclick="delProdsSel()">Excluir Selecionados (<span id="selCount">0</span>)</button>
-      <button class="btn btn-o" onclick="importarInventario()" style="background:var(--teal,#00b4a6);color:#fff;border-color:transparent">⬆ Importar Inventário</button>
       <button class="btn btn-p mla" onclick="novoProd()">+ Novo Produto</button>
     </div>
     <div class="card"><div class="tbl-wrap"><table id="tP">
-      <thead><tr><th style="width:36px"><input type="checkbox" id="chkAll" onchange="prodChkAll(this)"/></th><th style="width:40px"></th><th>Código</th><th>Nome</th><th>Un.</th><th>Categoria</th><th>Gaiola</th><th>Preço</th><th>Saldo</th><th>Vlr.Estoque</th><th>Mín.</th><th></th></tr></thead>
+      <thead><tr><th style="width:36px"><input type="checkbox" id="chkAll" onchange="prodChkAll(this)"/></th><th style="width:40px"></th><th style="cursor:pointer" onclick="sortProd('codigo')">Código ⇅</th><th style="cursor:pointer" onclick="sortProd('nome')">Nome ⇅</th><th>Un.</th><th>Categoria</th><th>Gaiola</th><th>Preço</th><th style="cursor:pointer" onclick="sortProd('saldo')">Saldo ⇅</th><th>Vlr.Estoque</th><th style="cursor:pointer" onclick="sortProd('minimo')">Mín. ⇅</th><th></th></tr></thead>
       <tbody>${prods.map(p=>`<tr data-q="${(p.nome+p.codigo).toLowerCase()}" data-id="${p.id}">
         <td><input type="checkbox" class="prod-chk" onchange="prodChkChange()" data-id="${p.id}"/></td>
         <td style="width:40px">${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;object-fit:cover;border-radius:4px"/>`:'<span style="display:inline-block;width:36px;height:36px;background:var(--off);border-radius:4px"></span>'}</td>
@@ -2055,6 +2054,29 @@ window.filtProd=()=>{
   const q=document.getElementById('srch')?.value.toLowerCase()||'';
   document.querySelectorAll('#tP tbody tr[data-q]').forEach(tr=>tr.style.display=tr.dataset.q.includes(q)?'':'none');
   prodChkChange();
+};
+let _prodSortCol='nome',_prodSortAsc=true;
+window.sortProd=(col)=>{
+  if(_prodSortCol===col){_prodSortAsc=!_prodSortAsc;}else{_prodSortCol=col;_prodSortAsc=col==='saldo'||col==='minimo'?false:true;}
+  const tbody=document.querySelector('#tP tbody');
+  if(!tbody)return;
+  const rows=Array.from(tbody.querySelectorAll('tr[data-q]'));
+  rows.sort((a,b)=>{
+    const pa=a.dataset,pb=b.dataset;
+    let va,vb;
+    if(col==='saldo'||col==='minimo'||col==='preco'){
+      const idx=col==='saldo'?8:col==='minimo'?10:7;
+      va=parseFloat(a.cells[idx]?.textContent?.replace(/[^\d.,-]/g,'').replace(',','.')||0)||0;
+      vb=parseFloat(b.cells[idx]?.textContent?.replace(/[^\d.,-]/g,'').replace(',','.')||0)||0;
+      return _prodSortAsc?va-vb:vb-va;
+    }else{
+      const idx=col==='codigo'?2:col==='nome'?3:3;
+      va=a.cells[idx]?.textContent||'';
+      vb=b.cells[idx]?.textContent||'';
+      return _prodSortAsc?va.localeCompare(vb):vb.localeCompare(va);
+    }
+  });
+  rows.forEach(r=>tbody.appendChild(r));
 };
 window.importarInventario=async()=>{
   const ITENS=[
