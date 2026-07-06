@@ -507,6 +507,16 @@ async function registrar(){
   }catch(e){lmsg(e.message);}
 }
 
+async function atualizarBadgeUsuarios(){
+  try{
+    const users=await dbGetAll('usuarios');
+    const pendentes=users.filter(u=>!u.ativo).length;
+    const badge=document.getElementById('usrBadge');
+    if(!badge)return;
+    if(pendentes>0){badge.textContent=pendentes>99?'99+':pendentes;badge.style.display='flex';}
+    else{badge.style.display='none';}
+  }catch(e){}
+}
 async function atualizarBadgePedidos(){
   try{
     const peds=await dbGetAll('pedidos');
@@ -528,9 +538,11 @@ function startApp(){
     <div class="ni" data-p="${n.p}" onclick="navTo('${n.p}')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${n.i}</svg>${n.l}
       ${n.p==='pedidos'?'<span class="nav-badge" id="pedBadge" style="display:none">0</span>':''}
+      ${n.p==='usuarios'?'<span class="nav-badge" id="usrBadge" style="display:none">0</span>':''}
     </div>`).join('');
   marioWidgetInit();
   atualizarBadgePedidos();
+  atualizarBadgeUsuarios();
   navTo(pgs[0]);
 }
 
@@ -3315,6 +3327,7 @@ window.aprovarUser=async(id)=>{
   const u=await dbGet('usuarios',id);
   if(!u)return;
   await dbSave('usuarios',{...u,ativo:true});
+  atualizarBadgeUsuarios();
   navTo('usuarios');
 };
 window.delUser=async(id,nome)=>{
