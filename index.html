@@ -27,7 +27,7 @@ async function notificarEstoque(pedido){
   if(!EJS_KEY||!EJS_SERVICE||!EJS_TEMPLATE)return;
   try{
     const users=await dbGetAll('usuarios');
-    const ops=users.filter(u=>u.perfil==='estoque'&&u.ativo);
+    const ops=users.filter(u=>['estoque','suprimentos','admin'].includes(u.perfil)&&u.ativo);
     const itensStr=(pedido.itens||[]).map(i=>`${i.produtoNome||'?'} — ${i.qtd} ${i.unidade||'UN'}`).join('\n');
     for(const u of ops){
       await emailjs.send(EJS_SERVICE,EJS_TEMPLATE,{
