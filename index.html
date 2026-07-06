@@ -278,26 +278,13 @@ input[disabled]{background:var(--off);cursor:not-allowed;}
 
     <!-- Cadastro (requer admin) -->
     <div id="fReg" style="display:none">
-      <div class="alert al-w">Informe credenciais de administrador para criar um usuário.</div>
-      <div class="fg" style="margin-bottom:12px">
-        <div class="fgp"><label>E-mail Admin*</label><input type="email" id="rAEmail" placeholder="admin@email.com"/></div>
-        <div class="fgp"><label>Senha Admin*</label><input type="password" id="rASenha" placeholder="••••••••"/></div>
-      </div>
-      <div class="sep"></div>
+      <div class="alert al-w" style="margin-bottom:14px">Crie sua conta como <strong>Solicitante</strong>. Após o cadastro, aguarde a aprovação de um administrador para acessar o sistema.</div>
       <div class="fg">
         <div class="fgp full"><label>Nome Completo*</label><input id="rNome" placeholder="João Silva"/></div>
-        <div class="fgp full"><label>E-mail do Novo Usuário*</label><input type="email" id="rEmail" placeholder="joao@empresa.com"/></div>
-        <div class="fgp"><label>Senha (mín. 6 car.)*</label><input type="password" id="rSenha" placeholder="••••••••"/></div>
-        <div class="fgp"><label>Perfil de Acesso*</label>
-          <select id="rPerfil">
-            <option value="solicitante">Solicitante — somente Pedidos</option>
-            <option value="estoque">Op. Estoque — acesso completo</option>
-            <option value="suprimentos">Suprimentos — RC, NF e Estoque</option>
-            <option value="admin">Administrador — acesso total</option>
-          </select>
-        </div>
+        <div class="fgp full"><label>E-mail*</label><input type="email" id="rEmail" placeholder="joao@empresa.com"/></div>
+        <div class="fgp full"><label>Senha (mín. 6 car.)*</label><input type="password" id="rSenha" placeholder="••••••••"/></div>
       </div>
-      <button class="btn btn-p" style="width:100%;justify-content:center;margin-top:16px" onclick="registrar()">Criar Usuário</button>
+      <button class="btn btn-p" style="width:100%;justify-content:center;margin-top:16px" onclick="registrar()">Solicitar Acesso</button>
     </div>
   </div>
 </div>
@@ -491,7 +478,8 @@ async function login(){
   try{
     const users=await dbGetAll('usuarios');
     const u=users.find(x=>x.email===email);
-    if(!u||!u.ativo){lmsg('Usuário não encontrado ou inativo.');return;}
+    if(!u){lmsg('Usuário não encontrado.');return;}
+    if(!u.ativo){lmsg('Acesso pendente de aprovação. Aguarde um administrador ativar sua conta.');return;}
     const ok=await bcrypt.compare(senha,u.senha);
     if(!ok){lmsg('E-mail ou senha incorretos.');return;}
     const sess={id:u.id,nome:u.nome,email:u.email,perfil:u.perfil};
@@ -502,28 +490,18 @@ async function login(){
 }
 
 async function registrar(){
-  const aEmail=document.getElementById('rAEmail').value.trim().toLowerCase();
-  const aSenha=document.getElementById('rASenha').value;
   const nome=document.getElementById('rNome').value.trim();
   const email=document.getElementById('rEmail').value.trim().toLowerCase();
   const senha=document.getElementById('rSenha').value;
-  const perfil=document.getElementById('rPerfil').value;
-  if(!aEmail||!aSenha){lmsg('Informe as credenciais de administrador.');return;}
-  if(!nome||!email||!senha){lmsg('Preencha todos os dados do novo usuário.');return;}
+  if(!nome||!email||!senha){lmsg('Preencha todos os campos.');return;}
   if(senha.length<6){lmsg('Senha deve ter ao menos 6 caracteres.');return;}
   try{
-    // valida admin
     const users=await dbGetAll('usuarios');
-    const admin=users.find(x=>x.email===aEmail&&x.ativo);
-    if(!admin){lmsg('Administrador não encontrado.');return;}
-    const ok=await bcrypt.compare(aSenha,admin.senha);
-    if(!ok||admin.perfil!=='admin'){lmsg('Credenciais de administrador inválidas.');return;}
-    // verifica duplicata
     if(users.find(x=>x.email===email)){lmsg('E-mail já cadastrado.');return;}
     const hash=await bcrypt.hash(senha);
-    await dbAdd('usuarios',{nome,email,senha:hash,perfil,ativo:true,criadoEm:now()});
-    lmsg(`✓ Usuário "${nome}" criado com sucesso!`,true);
-    setTimeout(()=>switchTab('login'),1800);
+    await dbAdd('usuarios',{nome,email,senha:hash,perfil:'solicitante',ativo:false,criadoEm:now()});
+    lmsg(`✓ Solicitação enviada! Aguarde aprovação de um administrador.`,true);
+    setTimeout(()=>switchTab('login'),2500);
   }catch(e){lmsg(e.message);}
 }
 
@@ -3232,9 +3210,10 @@ PAGES.usuarios=async(el)=>{
       <tbody>${users.map(u=>`<tr>
         <td><strong>${escH(u.nome)}</strong></td><td>${escH(u.email)}</td>
         <td>${perfilBadge(u.perfil)}</td>
-        <td><span class="badge ${u.ativo?'b-green':'b-gray'}">${u.ativo?'Ativo':'Inativo'}</span></td>
+        <td><span class="badge ${u.ativo?'b-green':'b-warn'}">${u.ativo?'Ativo':'Pendente'}</span></td>
         <td>${fmtD(u.criadoEm)}</td>
         <td class="row" style="gap:5px;flex-wrap:nowrap">
+          ${!u.ativo?`<button class="btn btn-p btn-sm" onclick="aprovarUser(${u.id})">✓ Aprovar</button>`:''}
           <button class="btn btn-o btn-sm" onclick="editUser(${u.id})">Editar</button>
           ${u.id!==CU.id?`<button class="btn btn-r btn-sm" onclick="delUser(${u.id},'${escH(u.nome).replace(/'/g,"\\'")}')">×</button>`:''}
         </td>
@@ -3303,6 +3282,12 @@ window.salvarUser=async(id)=>{
     showMErr('Erro ao salvar: '+e.message);
     if(btn){btn.disabled=false;btn.textContent='Salvar';}
   }
+};
+window.aprovarUser=async(id)=>{
+  const u=await dbGet('usuarios',id);
+  if(!u)return;
+  await dbSave('usuarios',{...u,ativo:true});
+  navTo('usuarios');
 };
 window.delUser=async(id,nome)=>{
   if(!confirm(`Excluir usuário "${nome}"?`))return;
