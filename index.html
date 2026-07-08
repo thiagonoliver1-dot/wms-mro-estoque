@@ -2842,7 +2842,7 @@ window.verPed=async(id)=>{
     `<button class="btn btn-o" onclick="mClose()">Fechar</button>
      <button class="btn btn-o" onclick="imprimirSeparacao(${id})" title="Imprimir lista de separação">🖨 Imprimir</button>
      ${podeAv&&ped.status==='Pendente'?`<button class="btn btn-r" onclick="avancarPed(${id},'Cancelado')">Cancelar</button><button class="btn btn-p" onclick="avancarPed(${id},'Em Separação')">Iniciar Separação</button>`:''}
-     ${podeAv&&ped.status==='Em Separação'?`<button class="btn btn-r" onclick="avancarPed(${id},'Cancelado')">Cancelar</button><button class="btn btn-g" onclick="abrirSepParcial(${id})">Registrar Entrega Parcial</button>${temPendente?'':'<button class="btn btn-p" onclick="avancarPed('+id+',\'Entregue\')">Finalizar Pedido</button>'}`:''}
+     ${podeAv&&ped.status==='Em Separação'?`<button class="btn btn-r" onclick="avancarPed(${id},'Cancelado')">Cancelar</button><button class="btn btn-g" onclick="abrirSepParcial(${id})">Registrar Entrega Parcial</button><button class="btn btn-p" onclick="${temPendente?`confirmarEntregaParcial(${id})`:`avancarPed(${id},'Entregue')`}">${temPendente?'Finalizar (Parcial)':'Finalizar Pedido'}</button>`:''}
      `);
 };
 
@@ -3087,6 +3087,17 @@ window.confirmarSepParcial=async(id,indices)=>{
   }catch(e){showMErr(e.message);if(btn){btn.disabled=false;btn.textContent='Confirmar Entrega';}}
 };
 
+window.confirmarEntregaParcial=async(id)=>{
+  const ped=await dbGet('pedidos',id);
+  const pendentes=(ped.itens||[]).filter(it=>(it.qtd||0)-(it.qtdEntregue||0)>0);
+  const lista=pendentes.map(it=>`• ${it.produtoNome} — faltam ${fmt((it.qtd||0)-(it.qtdEntregue||0),2)} ${it.unidade||'UN'}`).join('\n');
+  mOpen('Finalizar com itens pendentes',`
+    <div class="alert al-w" style="margin-bottom:12px">⚠️ Ainda há itens não entregues neste pedido:</div>
+    <pre style="font-size:.82rem;color:var(--tx);background:var(--card-bg);padding:10px;border-radius:6px;white-space:pre-wrap;margin-bottom:4px">${escH(lista)}</pre>
+    <div style="font-size:.82rem;color:var(--lt);margin-top:8px">Deseja finalizar mesmo assim? O pedido será marcado como <strong>Entregue (parcial)</strong>.</div>`,
+    `<button class="btn btn-o" onclick="mClose()">Voltar</button>
+     <button class="btn btn-p" onclick="avancarPed(${id},'Entregue');mClose()">Confirmar Finalização</button>`);
+};
 window.avancarPed=async(id,ns)=>{
   if(ns==='Cancelado'){
     const motivo=prompt('Motivo do cancelamento (opcional):');
