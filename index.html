@@ -422,9 +422,9 @@ async function dbDel(table,id){
 let CU = null; // currentUser
 
 const PERFIL_PAGES = {
-  admin:        ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','usuarios','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','pa_realizado','bi_suprimentos','minha_conta'],
-  estoque:      ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','minha_conta'],
-  suprimentos:  ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','pa_realizado','bi_suprimentos','minha_conta'],
+  admin:        ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','usuarios','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','pa_realizado','lista_pedido','bi_suprimentos','minha_conta'],
+  estoque:      ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','lista_pedido','minha_conta'],
+  suprimentos:  ['dashboard','produtos','entrada','saida','posicoes','inventario','pedidos','historico','estoque_view','requisicoes','notas_fiscais','rc_gimba','contratos','pa_realizado','lista_pedido','bi_suprimentos','minha_conta'],
   solicitante:  ['pedidos','estoque_view','minha_conta']
 };
 const PAGE_TITLES = {
@@ -433,7 +433,7 @@ const PAGE_TITLES = {
   pedidos:'Pedidos para Operação',historico:'Histórico de Movimentos',usuarios:'Gerenciar Usuários',
   estoque_view:'Consulta de Estoque',mario:'Mario — Assistente de Estoque',minha_conta:'Minha Conta',
   requisicoes:'Requisições de Compra — RC / GIMBA',notas_fiscais:'Lançamento de Notas Fiscais',
-  rc_gimba:'RC / GIMBA — Gestão de Compras',contratos:'Gestão de Contratos',pa_realizado:'PA vs Realizado — Contas Contábeis',bi_suprimentos:'BI — Suprimentos'
+  rc_gimba:'RC / GIMBA — Gestão de Compras',contratos:'Gestão de Contratos',pa_realizado:'PA vs Realizado — Contas Contábeis',lista_pedido:'Lista de Pedidos Mensal',bi_suprimentos:'BI — Suprimentos'
 };
 const NAV = [
   {p:'dashboard',l:'Dashboard & BI',i:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'},
@@ -448,6 +448,7 @@ const NAV = [
   {p:'contratos',l:'Contratos',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="12" y1="17" x2="12" y2="13"/>'},
   {p:'notas_fiscais',l:'Notas Fiscais',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>'},
   {p:'pa_realizado',l:'PA vs Realizado',i:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><polyline points="2 20 22 20"/>'},
+  {p:'lista_pedido',l:'Lista de Pedidos',i:'<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="M9 12h6"/><path d="M9 16h4"/>'},
   {p:'bi_suprimentos',l:'BI Suprimentos',i:'<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>'},
   {p:'usuarios',l:'Usuários',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},
   {p:'estoque_view',l:'Consulta Estoque',i:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>'},
@@ -2049,6 +2050,138 @@ window.marioToggleMic=function(){
     _micReset();
     marioAddMsg('bot','⚠️ Não foi possível iniciar o microfone. Verifique as permissões no Chrome.',true);
   }
+};
+
+/* ─── LISTA DE PEDIDOS MENSAL ───────────────────── */
+PAGES.lista_pedido=async(el)=>{
+  el.innerHTML='<div class="tlt">Carregando dados…</div>';
+  const [peds,prods]=await Promise.all([dbGetAll('pedidos'),dbGetAll('produtos')]);
+  const prodMap={};prods.forEach(p=>{prodMap[p.id]=p;});
+
+  // consumo médio mensal (últimos 6 meses)
+  const seisM=new Date();seisM.setMonth(seisM.getMonth()-6);
+  const consumoMap={};
+  peds.filter(p=>p.status==='Entregue'&&new Date(p.criadoEm)>seisM).forEach(p=>{
+    (p.itens||[]).forEach(it=>{
+      if(!consumoMap[it.produtoId])consumoMap[it.produtoId]={nome:it.produtoNome,un:it.unidade||'UN',total:0};
+      consumoMap[it.produtoId].total+=+(it.qtdEntregue||it.qtd||0);
+    });
+  });
+
+  // itens não atendidos (solicitados mas não entregues)
+  const naoAtMap={};
+  peds.forEach(p=>{
+    (p.itens||[]).forEach(it=>{
+      const falta=(it.qtd||0)-(it.qtdEntregue||0);
+      if(falta>0){
+        if(!naoAtMap[it.produtoId])naoAtMap[it.produtoId]={nome:it.produtoNome,un:it.unidade||'UN',total:0};
+        naoAtMap[it.produtoId].total+=falta;
+      }
+    });
+  });
+
+  // produtos abaixo do mínimo
+  const abaixoMin=prods.filter(p=>(p.saldo||0)<(p.estoque_minimo||0));
+
+  // união de todos os produtos relevantes
+  const ids=new Set([...Object.keys(consumoMap),...Object.keys(naoAtMap),...abaixoMin.map(p=>String(p.id))]);
+  let _lista=JSON.parse(localStorage.getItem('lista_pedido_data')||'[]');
+  if(!_lista.length){
+    _lista=[...ids].map(id=>{
+      const p=prodMap[+id];
+      const c=consumoMap[id];
+      const n=naoAtMap[id];
+      const mediaM=c?Math.round(c.total/6):0;
+      const naoAt=n?Math.round(n.total):0;
+      const saldo=p?Math.round(p.saldo||0):0;
+      const minimo=p?Math.round(p.estoque_minimo||0):0;
+      return{id:+id,nome:p?.nome||c?.nome||n?.nome||'?',un:p?.unidade||c?.un||n?.un||'UN',saldo,minimo,mediaM,naoAt,qtd:Math.max(mediaM,naoAt,0),obs:''};
+    }).sort((a,b)=>b.naoAt-a.naoAt||b.mediaM-a.mediaM);
+  }
+  window._lpLista=_lista;
+
+  function renderTabela(){
+    return`<div class="tbl-wrap"><table id="lp-tbl">
+      <thead><tr>
+        <th onclick="sortTbl('lp-tbl',0)" style="cursor:pointer">Produto ⇅</th>
+        <th>Un.</th>
+        <th onclick="sortTbl('lp-tbl',2,'num')" style="cursor:pointer">Saldo ⇅</th>
+        <th onclick="sortTbl('lp-tbl',3,'num')" style="cursor:pointer">Mínimo ⇅</th>
+        <th onclick="sortTbl('lp-tbl',4,'num')" style="cursor:pointer">Consumo/Mês ⇅</th>
+        <th onclick="sortTbl('lp-tbl',5,'num')" style="cursor:pointer">Não Atendido ⇅</th>
+        <th>Qtd a Pedir</th>
+        <th>Observação</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${_lpLista.map((it,i)=>{
+        const alerta=it.saldo<it.minimo?'style="color:var(--red);font-weight:700"':'';
+        return`<tr>
+          <td>${escH(it.nome)}</td>
+          <td>${escH(it.un)}</td>
+          <td ${alerta}>${it.saldo}</td>
+          <td>${it.minimo}</td>
+          <td>${it.mediaM}</td>
+          <td style="${it.naoAt>0?'color:var(--warning);font-weight:700':''}"">${it.naoAt}</td>
+          <td><input type="number" min="0" step="1" value="${it.qtd}" oninput="window._lpLista[${i}].qtd=Math.round(+this.value||0);this.value=window._lpLista[${i}].qtd" style="width:80px;text-align:center"/></td>
+          <td><input type="text" value="${escH(it.obs||'')}" oninput="window._lpLista[${i}].obs=this.value" style="width:140px"/></td>
+          <td><button class="btn btn-r btn-sm" onclick="lpRemItem(${i})">×</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  }
+
+  const groqKey=localStorage.getItem('mario_groq_key')||'';
+  el.innerHTML=`
+    <div class="row" style="margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div class="tlt">Lista gerada com base nos últimos 6 meses de consumo e itens não atendidos.</div>
+      <div class="row mla" style="gap:8px;flex-wrap:wrap">
+        ${groqKey?`<button class="btn btn-p" onclick="lpGerarIA()">🤖 Gerar com IA</button>`:'<span class="tlt" style="font-size:.75rem">Configure a chave Groq no Mario para usar IA</span>'}
+        <button class="btn btn-o" onclick="lpSalvar()">💾 Salvar Rascunho</button>
+        <button class="btn btn-o" onclick="lpExportar()">📥 Exportar CSV</button>
+        <button class="btn btn-r btn-sm" onclick="lpLimpar()" title="Limpar lista e recalcular">↺ Resetar</button>
+      </div>
+    </div>
+    <div id="lp-ia-status" style="display:none" class="alert al-w">Gerando sugestões com IA…</div>
+    <div class="card">${renderTabela()}</div>`;
+
+  window.lpRemItem=(i)=>{window._lpLista.splice(i,1);document.querySelector('.card').innerHTML=renderTabela();};
+  window.lpSalvar=()=>{localStorage.setItem('lista_pedido_data',JSON.stringify(window._lpLista));alert('✓ Rascunho salvo!');};
+  window.lpLimpar=()=>{if(!confirm('Limpar lista e recalcular?'))return;localStorage.removeItem('lista_pedido_data');navTo('lista_pedido');};
+  window.lpExportar=()=>{
+    const h='Produto,Unidade,Saldo,Mínimo,Consumo/Mês,Não Atendido,Qtd a Pedir,Observação';
+    const rows=window._lpLista.map(it=>[`"${it.nome}"`,it.un,it.saldo,it.minimo,it.mediaM,it.naoAt,it.qtd,`"${it.obs||''}"`].join(','));
+    const blob=new Blob([h+'\n'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
+    Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:'lista_pedido_mensal.csv'}).click();
+  };
+  window.lpGerarIA=async()=>{
+    const key=localStorage.getItem('mario_groq_key')||'';
+    if(!key){alert('Configure a chave Groq no Mario IA.');return;}
+    const st=document.getElementById('lp-ia-status');
+    st.style.display='';
+    const resumo=window._lpLista.slice(0,40).map(it=>`${it.nome}: saldo=${it.saldo}, mín=${it.minimo}, consumo/mês=${it.mediaM}, não atendido=${it.naoAt}, qtdAtual=${it.qtd}`).join('\n');
+    try{
+      const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+        body:JSON.stringify({model:'llama3-8b-8192',temperature:0.3,max_tokens:1200,messages:[
+          {role:'system',content:'Você é especialista em suprimentos MRO. Analise a lista e sugira quantidades a pedir (inteiros). Responda APENAS em JSON array com campos: nome, qtd (inteiro), motivo (máx 60 chars). Ordene por prioridade.'},
+          {role:'user',content:`Lista de produtos para revisar:\n${resumo}\n\nRetorne JSON array com sugestões de qtd a pedir para os mais prioritários.`}
+        ]})
+      });
+      const d=await r.json();
+      const txt=d.choices?.[0]?.message?.content||'';
+      const match=txt.match(/\[[\s\S]*\]/);
+      if(match){
+        const sugs=JSON.parse(match[0]);
+        sugs.forEach(s=>{
+          const item=window._lpLista.find(it=>it.nome.toLowerCase().includes(s.nome?.toLowerCase()?.slice(0,10)));
+          if(item){item.qtd=Math.round(Math.abs(+s.qtd)||item.qtd);if(s.motivo)item.obs=s.motivo;}
+        });
+        document.querySelector('.card').innerHTML=renderTabela();
+        st.textContent='✓ IA aplicou sugestões às quantidades.';st.className='alert al-s';
+      }else{st.textContent='IA não retornou sugestões estruturadas.';st.className='alert al-d';}
+    }catch(e){st.textContent='Erro: '+e.message;st.className='alert al-d';}
+  };
 };
 
 /* ─── BI SUPRIMENTOS ────────────────────────────── */
