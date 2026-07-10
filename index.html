@@ -2906,12 +2906,19 @@ let _pedItens=[];
 PAGES.pedidos=async(el)=>{
   const peds=await dbGetAll('pedidos');
   peds.sort((a,b)=>b.id-a.id);
-  const stats={Pendente:0,'Em Separação':0,Entregue:0,Cancelado:0};
-  peds.forEach(p=>{if(stats[p.status]!==undefined)stats[p.status]++;});
-  const vis=peds.filter(p=>_pedFilt==='Todos'||p.status===_pedFilt);
+  const stats={Pendente:0,Entregue:0,Cancelado:0};
+  peds.forEach(p=>{
+    if(p.status==='Pendente'||p.status==='Em Separação') stats.Pendente++;
+    else if(stats[p.status]!==undefined) stats[p.status]++;
+  });
+  const vis=peds.filter(p=>{
+    if(_pedFilt==='Todos') return true;
+    if(_pedFilt==='Pendente') return p.status==='Pendente'||p.status==='Em Separação';
+    return p.status===_pedFilt;
+  });
   el.innerHTML=`
     <div class="row" style="margin-bottom:14px;align-items:flex-start;gap:14px">
-      <div class="kpi-grid" style="flex:1;margin-bottom:0;grid-template-columns:repeat(4,1fr)">
+      <div class="kpi-grid" style="flex:1;margin-bottom:0;grid-template-columns:repeat(3,1fr)">
         ${Object.entries(stats).map(([s,n])=>`<div class="kpi-card" style="padding:12px">
           <div class="kpi-lbl">${s}</div><div class="kpi-val" style="font-size:1.3rem">${n}</div>
         </div>`).join('')}
@@ -2919,7 +2926,7 @@ PAGES.pedidos=async(el)=>{
       <button class="btn btn-p" style="white-space:nowrap" onclick="novoPed()">+ Novo Pedido</button>
     </div>
     <div class="row" id="pedFilts" style="margin-bottom:12px;gap:6px">
-      ${['Todos','Pendente','Em Separação','Entregue','Cancelado'].map(s=>
+      ${['Todos','Pendente','Entregue','Cancelado'].map(s=>
         `<button class="btn btn-sm ${_pedFilt===s?'btn-p':'btn-o'}" data-pf="${s}" onclick="setPedF('${s}',this)">${s}</button>`).join('')}
     </div>
     <div id="pedList">${vis.map(renderPC).join('')||'<div class="tlt">Nenhum pedido.</div>'}</div>`;
