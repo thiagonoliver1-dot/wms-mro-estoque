@@ -2342,7 +2342,7 @@ PAGES.estoque_view=async(el)=>{
       <button class="btn btn-o btn-sm" onclick="filtEVStatus('zero')"><span style="color:var(--lt)">✕ Sem estoque</span></button>
     </div>
     <div class="card"><div class="tbl-wrap"><table id="tEV">
-      <thead><tr><th></th><th onclick="sortTbl('tEV',1)" style="cursor:pointer">Código <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',2)" style="cursor:pointer">Nome <span class="sico">⇅</span></th><th>Un.</th><th onclick="sortTbl('tEV',4)" style="cursor:pointer">Gaiola <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',5,'num')" style="cursor:pointer">Saldo <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',6,'num')" style="cursor:pointer">Mínimo <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',7)" style="cursor:pointer">Situação <span class="sico">⇅</span></th></tr></thead>
+      <thead><tr><th></th><th onclick="sortTbl('tEV',1)" style="cursor:pointer">Código <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',2)" style="cursor:pointer">Nome <span class="sico">⇅</span></th><th>Un.</th><th onclick="sortTbl('tEV',4)" style="cursor:pointer">Gaiola <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',5,'num')" style="cursor:pointer">Mínimo <span class="sico">⇅</span></th><th onclick="sortTbl('tEV',7)" style="cursor:pointer">Situação <span class="sico">⇅</span></th></tr></thead>
       <tbody>${prods.map(p=>{
         const abx=p.saldo<p.minimo&&p.minimo>0;
         const zero=p.saldo===0||p.saldo<=0;
@@ -2358,11 +2358,10 @@ PAGES.estoque_view=async(el)=>{
           <td><strong>${escH(p.nome)}</strong></td>
           <td>${escH(p.unidade||'UN')}</td>
           <td><span class="badge b-out">${escH(p.gaiola||'—')}</span></td>
-          <td style="font-weight:700;font-size:.92rem;color:${zero?'var(--lt)':abx?'var(--red)':'var(--dk)'}">${fmt(p.saldo,2)}</td>
           <td style="color:var(--lt)">${fmt(p.minimo,2)}</td>
           <td>${sit}</td>
         </tr>`;
-      }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--lt)">Nenhum produto cadastrado.</td></tr>'}
+      }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--lt)">Nenhum produto cadastrado.</td></tr>'}
       </tbody></table></div></div>`;
   window._evStatus='';
 };
