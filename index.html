@@ -829,13 +829,20 @@ PAGES.dashboard=async(el)=>{
     }
     function vBar(items,maxV,color){
       if(!items.length)return'<div class="tlt" style="padding:12px">Sem dados</div>';
-      const bW=34,gap=8,cH=155,sx=5, w=sx+items.length*(bW+gap);
-      return`<svg viewBox="0 0 ${w} ${cH}" width="100%" style="overflow:visible">
-        <line x1="${sx}" y1="${cH-22}" x2="${w}" y2="${cH-22}" stroke="var(--border)" stroke-width="1"/>
-        ${items.map((it,i)=>{const x=sx+i*(bW+gap),h=Math.round((it.val/maxV)*(cH-30));return`
-          <rect x="${x}" y="${cH-22-h}" width="${bW}" height="${h}" rx="3" fill="${color}"/>
-          <text x="${x+bW/2}" y="${cH-22-h-4}" text-anchor="middle" font-size="9" fill="var(--dk)" font-family="Raleway,sans-serif">${Math.round(it.val)}</text>
-          <text x="${x+bW/2}" y="${cH-4}" text-anchor="middle" font-size="9" fill="var(--lt)" font-family="Raleway,sans-serif">${it.label}</text>`;}).join('')}
+      const bW=Math.max(22,Math.min(42,Math.floor(320/items.length)-8));
+      const gap=6,cH=170,sx=5,topPad=20,botPad=22;
+      const avail=cH-topPad-botPad;
+      const w=sx+items.length*(bW+gap)+gap;
+      return`<svg viewBox="0 0 ${w} ${cH}" width="100%">
+        <line x1="${sx}" y1="${cH-botPad}" x2="${w}" y2="${cH-botPad}" stroke="var(--border)" stroke-width="1"/>
+        ${items.map((it,i)=>{
+          const x=sx+gap/2+i*(bW+gap);
+          const h=Math.max(3,Math.round((it.val/maxV)*avail));
+          const barY=cH-botPad-h;
+          return`<rect x="${x}" y="${barY}" width="${bW}" height="${h}" rx="3" fill="${color}"/>
+          <text x="${x+bW/2}" y="${barY-4}" text-anchor="middle" font-size="9" fill="var(--dk)" font-family="Raleway,sans-serif">${Math.round(it.val)}</text>
+          <text x="${x+bW/2}" y="${cH-5}" text-anchor="middle" font-size="9" fill="var(--lt)" font-family="Raleway,sans-serif">${it.label}</text>`;
+        }).join('')}
       </svg>`;
     }
     const el0=document.getElementById('csKpis');
